@@ -1,18 +1,16 @@
-// The copy button, and the board's one moment: a slot is released and the next ticket takes it.
+// The copy button, and Figure 1's one moment: time runs up to "now" once, when the figure is seen.
 
 for (const button of document.querySelectorAll("[data-copy]")) {
   button.addEventListener("click", async () => {
     const source = document.querySelector(button.dataset.copy);
-    const text = source.textContent;
     try {
-      await navigator.clipboard.writeText(text);
+      await navigator.clipboard.writeText(source.textContent);
     } catch {
-      // No clipboard access (an http page, an old browser): select it so Ctrl/Cmd-C works.
+      // No clipboard access: select the text so Ctrl/Cmd-C works.
       const range = document.createRange();
       range.selectNodeContents(source);
-      const sel = getSelection();
-      sel.removeAllRanges();
-      sel.addRange(range);
+      getSelection().removeAllRanges();
+      getSelection().addRange(range);
       button.textContent = "Selected: press Ctrl+C";
       return;
     }
@@ -26,30 +24,13 @@ for (const button of document.querySelectorAll("[data-copy]")) {
   });
 }
 
-const board = document.querySelector(".board");
-const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
-if (board && !still) {
-  const leaving = board.querySelector("[data-leaves]");
-  const ticket = board.querySelector("[data-arrives]");
-  const before = board.querySelector("[data-before]");
-  const after = board.querySelector("[data-after]");
-  setTimeout(() => {
-    leaving.classList.add("leaving");
-    leaving.setAttribute("aria-label", "free");
-  }, 1400);
-  setTimeout(() => {
-    // Slide the ticket into the freed cell, then make the cell held by it.
-    const from = ticket.getBoundingClientRect();
-    const to = leaving.getBoundingClientRect();
-    ticket.classList.add("moving");
-    ticket.style.transform = `translate(${to.left - from.left}px, ${to.top - from.top}px)`;
-    ticket.addEventListener("transitionend", () => {
-      leaving.classList.remove("leaving");
-      leaving.textContent = ticket.textContent;
-      leaving.removeAttribute("aria-label");
-      ticket.remove();
-      before.hidden = true;
-      after.hidden = false;
-    }, { once: true });
-  }, 2200);
+const gantt = document.querySelector(".gantt");
+if (gantt && !matchMedia("(prefers-reduced-motion: reduce)").matches && "IntersectionObserver" in window) {
+  const seen = new IntersectionObserver((entries) => {
+    if (entries.some((e) => e.isIntersecting)) {
+      gantt.classList.add("play");
+      seen.disconnect();
+    }
+  }, { threshold: 0.4 });
+  seen.observe(gantt);
 }

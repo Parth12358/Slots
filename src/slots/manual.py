@@ -169,6 +169,23 @@ def setup_prompt() -> str:
     return re.search(r"```text\n(.*?)\n```", page("setup"), re.S).group(1)
 
 
+def flowed(text: str) -> str:
+    """Hard-wrapped Markdown-ish text as one line per paragraph or list item (for pasting, and for
+    a page that wraps it itself)."""
+    out: list[str] = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        starts_item = re.match(r"(\d+\.|-) ", stripped)
+        if not stripped:
+            out.append("")
+        elif out and out[-1] and not starts_item:
+            out[-1] += " " + stripped
+        else:
+            indent = "   " if stripped.startswith("- ") else ""
+            out.append(indent + stripped)
+    return "\n".join(out)
+
+
 def title(t: str) -> str:
     return re.match(r"# (.+)", page(t)).group(1)
 
@@ -194,7 +211,7 @@ def site(out: Path):
         f'- slug: {t}\n  title: "{title(t)}"\n  blurb: "{blurbs.get(t, "").replace(chr(34), chr(39))}"\n'
         for t in order))
     (docs / "_includes").mkdir(exist_ok=True)
-    (docs / "_includes" / "setup_prompt.txt").write_text(setup_prompt() + "\n")
+    (docs / "_includes" / "setup_prompt.txt").write_text(flowed(setup_prompt()) + "\n")
     all_text = "\n\n".join(page(t).rstrip() for t in order)
     (out / "all.txt").write_text(f"# slots {__version__}: the whole manual\n# {SITE}/wiki/\n\n{all_text}\n")
     (docs / "llms.txt").write_text(

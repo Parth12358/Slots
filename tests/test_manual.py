@@ -117,6 +117,9 @@ class ManualTest(unittest.TestCase):
             prompt = (Path(d) / "_includes" / "setup_prompt.txt").read_text()
             self.assertTrue(prompt.startswith('Set up "slots" on this machine.'))
             self.assertIn("slots claude install --dry-run", prompt)
+            self.assertIn("1. Check that python3 is 3.11 or newer, and that uv or pipx is installed. Install slots with",
+                          prompt, "reflowed: one line per item")
+            self.assertIn("\n   - which folder holds my work", prompt)
             all_txt = (Path(d) / "wiki" / "all.txt").read_text()
             for t in manual.TOPICS:
                 self.assertIn(manual.page(t).splitlines()[0], all_txt)

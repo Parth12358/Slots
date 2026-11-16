@@ -4,103 +4,102 @@ title: slots
 ---
 <main id="main" class="home">
   <section class="hero">
-    <div class="hero-text">
-      <h1>Run twenty Claude Code sessions on one laptop without it falling over.</h1>
-      <p class="lede">Sessions take turns at the heavy work: dev stacks, builds, full test suites, e2e runs. You say how much the machine can take, and slots hands out slots in arrival order. Nothing stays stuck when a session crashes.</p>
+    <h1>Many agents, one machine, no collisions.</h1>
+    <div class="hero-side">
+      <p class="lede">slots coordinates the heavy work of many Claude Code sessions on a single computer. You declare what the machine can take. Sessions take turns at builds, test suites and dev stacks, in the order they asked, and a crashed session never leaves anything held.</p>
       <p class="actions">
         <a class="button" href="#setup">Set it up with Claude</a>
-        <a class="button quiet" href="{{ '/wiki/quickstart.html' | relative_url }}">Read the quick start</a>
+        <a class="button quiet" href="{{ '/wiki/quickstart.html' | relative_url }}">Quick start</a>
       </p>
     </div>
-
-    <figure class="board" aria-describedby="board-caption">
-      <div class="board-row" data-pool="agent">
-        <span class="board-name">agent</span>
-        <ol class="cells" aria-label="agent pool, 7 slots">
-          <li class="cell held">10526</li><li class="cell held">11854</li><li class="cell held" data-leaves>11852</li><li class="cell held">11863</li><li class="cell held">11866</li><li class="cell held">14469</li><li class="cell held">11855</li>
-        </ol>
-        <ol class="line" aria-label="waiting">
-          <li class="ticket" data-arrives>11860</li>
-        </ol>
-      </div>
-      <div class="board-row" data-pool="test">
-        <span class="board-name">test</span>
-        <ol class="cells" aria-label="test pool, 5 slots">
-          <li class="cell held">10526</li><li class="cell held">11863</li><li class="cell held">14469</li><li class="cell free" aria-label="free"></li><li class="cell free" aria-label="free"></li>
-        </ol>
-      </div>
-      <div class="board-row" data-pool="e2e">
-        <span class="board-name">e2e</span>
-        <ol class="cells" aria-label="e2e lock">
-          <li class="cell held">11854</li>
-        </ol>
-        <ol class="line" aria-label="waiting">
-          <li class="ticket">11866</li>
-        </ol>
-      </div>
-      <figcaption id="board-caption"><span data-before>Every agent slot is taken, so 11860 waits in line.</span><span data-after hidden>11852 finished and released slot 3. 11860 was next in line and took it at once.</span></figcaption>
-    </figure>
   </section>
 
-  <section class="setup" id="setup" aria-labelledby="setup-title">
-    <div class="setup-text">
+  <figure class="fig" aria-labelledby="fig1-caption">
+    <div class="gantt" role="img" aria-label="Timeline of seven agent slots over an hour. 11860 waits from 10:18 until 11852 releases slot 3 at 10:34, then takes it.">
+      <div class="axis" aria-hidden="true"><span style="--t:0">10:00</span><span style="--t:15">10:15</span><span style="--t:30">10:30</span><span style="--t:45">10:45</span><span style="--t:60">11:00</span></div>
+      <div class="lanes">
+        <div class="track"><span class="label">slot 1</span><div class="plot"><i class="bar" style="--s:0;--e:60">10526</i></div></div>
+        <div class="track"><span class="label">slot 2</span><div class="plot"><i class="bar" style="--s:0;--e:22">11854</i><i class="bar" style="--s:24;--e:60">14471</i></div></div>
+        <div class="track key"><span class="label">slot 3</span><div class="plot"><i class="bar" style="--s:0;--e:34">11852</i><i class="bar handoff" style="--s:34;--e:60">11860</i></div></div>
+        <div class="track"><span class="label">slot 4</span><div class="plot"><i class="bar" style="--s:3;--e:60">11863</i></div></div>
+        <div class="track"><span class="label">slot 5</span><div class="plot"><i class="bar" style="--s:0;--e:41">11866</i><i class="bar" style="--s:43;--e:60">11870</i></div></div>
+        <div class="track"><span class="label">slot 6</span><div class="plot"><i class="bar" style="--s:6;--e:60">14469</i></div></div>
+        <div class="track"><span class="label">slot 7</span><div class="plot"><i class="bar" style="--s:0;--e:52">11855</i></div></div>
+        <div class="track queue"><span class="label">waiting</span><div class="plot"><i class="bar wait" style="--s:18;--e:34">11860</i></div></div>
+      </div>
+      <div class="sweep" aria-hidden="true"></div>
+      <div class="now" aria-hidden="true" style="--t:48"><span>now</span></div>
+    </div>
+    <figcaption id="fig1-caption"><b>Figure 1.</b> An hour on a shared laptop with seven agent slots. At 10:18 every slot is held, so lane 11860 waits in line. When 11852 releases slot 3 at 10:34, 11860 is told at once and takes it. No polling, and no slot left held by a session that crashed.</figcaption>
+  </figure>
+
+  <section class="band" id="setup" aria-labelledby="setup-title">
+    <div class="band-head">
       <h2 id="setup-title">Set it up with Claude</h2>
-      <p>Paste this into Claude Code on the machine you want to set up. It installs slots, asks you what the machine should share, and asks before it changes anything else.</p>
-      <p class="small">Prefer to do it yourself? Follow the <a href="{{ '/wiki/quickstart.html' | relative_url }}">quick start</a>.</p>
+      <p>Paste this into Claude Code on the machine you want to set up. It installs slots, asks what the machine should share, and asks before it changes anything else.</p>
+      <p class="small">Prefer to do it yourself? Read the <a href="{{ '/wiki/quickstart.html' | relative_url }}">quick start</a>.</p>
     </div>
     <div class="prompt">
       <div class="prompt-bar">
-        <span>Setup prompt for Claude Code</span>
-        <button type="button" class="button copy" data-copy="#setup-prompt">Copy setup prompt</button>
+        <span>Setup prompt</span>
+        <button type="button" class="button copy" data-copy="#setup-prompt">Copy prompt</button>
       </div>
       {% capture prompt %}{% include setup_prompt.txt %}{% endcapture %}
       <pre id="setup-prompt" tabindex="0">{{ prompt | strip | escape }}</pre>
     </div>
   </section>
 
-  <section class="how" aria-labelledby="how-title">
-    <h2 id="how-title">How it works</h2>
-    <div class="how-grid">
+  <section class="band" aria-labelledby="how-title">
+    <div class="band-head">
+      <h2 id="how-title">How it works</h2>
+      <p>One daemon per machine holds every lease, in one queue. Everything else is a client of it.</p>
+    </div>
+    <div class="points">
       <div>
         <h3>You set the limits</h3>
-        <p>One config file says what the machine can take: seven sessions running stacks, five heavy test runs, one e2e run at a time. Change a number and it applies within two seconds.</p>
+        <p>A config file says what the machine can take: seven sessions running stacks, five heavy test runs, one e2e run at a time. Change a number and it applies within two seconds.</p>
       </div>
       <div>
         <h3>Sessions take turns</h3>
-        <p>A session holds a slot while its stack runs. Heavy commands run inside a test slot. When everything is taken, they wait in line and start the moment it's their turn.</p>
+        <p>A session holds an agent slot while its stack runs, and heavy commands run inside a test slot. When everything is taken, requests wait in arrival order and are told the moment it's their turn.</p>
       </div>
       <div>
-        <h3>Nothing stays stuck</h3>
-        <p>Every slot belongs to a session and a process. If either dies, even with <code>kill -9</code>, the slot is free again at once. No one has to clean up by hand.</p>
+        <h3>Leases end with their holder</h3>
+        <p>Every slot belongs to a session and a process. If either exits, even with <code>kill -9</code>, the slot is free within seconds. If the daemon itself is killed, the next command restarts it with nothing lost.</p>
       </div>
       <div>
-        <h3>You see everything</h3>
-        <p>Type <code>slots</code> for a live dashboard: what each session holds and runs, who's waiting, and a short list of what needs you, with a key to fix each.</p>
+        <h3>The agents follow the rules</h3>
+        <p>Claude Code hooks register each session and stop heavy commands that run without a slot, telling Claude exactly how to get one. Ending a session gives back everything it held.</p>
       </div>
     </div>
   </section>
 
-  <section class="commands" aria-labelledby="commands-title">
-    <h2 id="commands-title">The commands you'll use</h2>
-<pre><code><span class="c"># hold a test slot for one command; exits with the command's exit code</span>
+  <section class="band" aria-labelledby="commands-title">
+    <div class="band-head">
+      <h2 id="commands-title">Five commands</h2>
+      <p>Most days, these are all anyone types. Agents use the same ones.</p>
+    </div>
+<pre class="cmds"><code><span class="c"># run one heavy command in a test slot; exits with its exit code</span>
 slots run test -- npx vitest run
 
-<span class="c"># hold a slot across commands, while your stack runs</span>
+<span class="c"># hold an agent slot while your stack runs</span>
 slots acquire agent --wait
 slots release agent
 
-<span class="c"># see who holds and waits for what</span>
+<span class="c"># see who holds and waits for what, or open the dashboard</span>
 slots status
 slots</code></pre>
   </section>
 
-  <section class="manual" aria-labelledby="manual-title">
-    <h2 id="manual-title">The manual</h2>
+  <section class="band" aria-labelledby="manual-title">
+    <div class="band-head">
+      <h2 id="manual-title">Manual</h2>
+      <p>Also offline, in the terminal: <code>slots help</code>. For agents, the whole manual is one text file: <a href="{{ '/wiki/all.txt' | relative_url }}">all.txt</a>.</p>
+    </div>
     <dl class="topics">
       {% for t in site.data.topics %}{% if t.slug != 'index' %}
       <div><dt><a href="{{ '/wiki/' | append: t.slug | append: '.html' | relative_url }}">{{ t.title }}</a></dt><dd>{{ t.blurb }}</dd></div>
       {% endif %}{% endfor %}
     </dl>
-    <p class="small">Agents: the whole manual is one plain-text file at <a href="{{ '/wiki/all.txt' | relative_url }}">wiki/all.txt</a>. Start with <a href="{{ '/llms.txt' | relative_url }}">llms.txt</a>.</p>
   </section>
 </main>

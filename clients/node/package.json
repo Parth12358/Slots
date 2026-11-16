@@ -10,5 +10,5 @@
     "./playwright": { "types": "./playwright.d.ts", "default": "./playwright.mjs" }
   },
   "files": ["lock.mjs", "lock.d.ts", "playwright.mjs", "playwright.d.ts"],
-  "license": "MIT"
+  "license": "GPL-2.0-only"
 }

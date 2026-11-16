@@ -164,7 +164,8 @@ pre .c, .highlight .c, .highlight .c1, .highlight .cm { color: var(--muted); }
 .button.quiet { background: transparent; color: var(--ink); border-color: var(--line); }
 .button.quiet:hover { border-color: var(--ink); opacity: 1; }
 
-/* Figure 1: slots over an hour. Bars are placed in minutes, --s to --e, out of 60. */
+/* Figure 1: slots over an hour. Bars are placed in minutes (--s to --e, of 60) and drawn up to
+   --now, which the script runs from 0 to 48 once; without it (or with reduced motion) --now is 48. */
 .fig { margin: 0 0 1rem; padding: 2rem 0 0; border-top: 1px solid var(--line); }
 .gantt { position: relative; --label: 4.25rem; padding-top: 1.6rem; }
 .axis { position: absolute; top: 0; left: var(--label); right: 0; height: 1.2rem; font-size: 0.75rem; color: var(--muted);
@@ -178,28 +179,36 @@ pre .c, .highlight .c, .highlight .c1, .highlight .cm { color: var(--muted); }
 .plot { position: relative; height: 1.9rem; background:
         repeating-linear-gradient(to right, var(--line) 0 1px, transparent 1px calc(100% / 4)); border-radius: 3px; }
 .bar {
-  position: absolute; top: 0; bottom: 0; left: calc(var(--s) / 60 * 100%); width: calc((var(--e) - var(--s)) / 60 * 100%);
-  display: flex; align-items: center; padding: 0 0.55rem; overflow: hidden; white-space: nowrap;
+  position: absolute; top: 0; bottom: 0; left: calc(var(--s) / 60 * 100%);
+  width: calc(max(0, min(var(--now), var(--e)) - var(--s)) / 60 * 100%);
+  display: flex; align-items: center; overflow: hidden; white-space: nowrap;
   font-style: normal; font-size: 0.78rem; font-weight: 500; font-variant-numeric: tabular-nums;
-  background: var(--held-soft); color: var(--ink); border-radius: 3px; border-left: 2px solid var(--held);
+  background: var(--held-soft); color: var(--ink); border-radius: 3px; box-shadow: inset 2px 0 0 var(--held);
 }
-.bar.handoff { background: var(--held); color: var(--on-ink); border-left: 0;
-               left: calc(var(--s) / 60 * 100% + 3px); width: calc((var(--e) - var(--s)) / 60 * 100% - 3px); }
-.bar.wait { background: transparent; border: 1.5px dashed var(--wait); color: var(--ink); }
+.bar span { padding: 0 0.55rem; }
+.bar.handoff { background: var(--held); color: var(--on-ink); box-shadow: none;
+               left: calc(var(--s) / 60 * 100% + 3px);
+               width: max(0px, calc(max(0, min(var(--now), var(--e)) - var(--s)) / 60 * 100% - 3px)); }
+.bar.wait { background: transparent; box-shadow: none; outline: 1.5px dashed var(--wait); outline-offset: -1.5px; }
+.bar.wait[data-served] { outline-color: var(--line); color: var(--muted); transition: outline-color .6s, color .6s; }
 .track.queue { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
-.now { position: absolute; top: 1.3rem; bottom: 0; left: calc(var(--label) + (100% - var(--label)) * var(--t) / 60);
+.now { position: absolute; top: 1.3rem; bottom: 0; left: calc(var(--label) + (100% - var(--label)) * var(--now) / 60);
        border-left: 1.5px solid var(--ink); pointer-events: none; }
-.now span { position: absolute; top: -1.35rem; left: 0.35rem; font-size: 0.75rem; font-weight: 600; }
-.sweep { position: absolute; top: 1.4rem; bottom: -2px; right: 0; left: calc(var(--label) + (100% - var(--label)) * 48 / 60);
-         background: linear-gradient(to right, transparent, var(--bg) 0.75rem); pointer-events: none; }
+.now span { position: absolute; top: -1.35rem; left: -0.1rem; padding: 0 0.3rem; background: var(--bg); font-size: 0.75rem; font-weight: 600;
+            font-variant-numeric: tabular-nums; white-space: nowrap; }
 .fig figcaption { margin-top: 1.4rem; font-size: 0.95rem; color: var(--muted); max-width: 72ch; }
 .fig figcaption b { color: var(--ink); font-weight: 600; }
+.replay { font: inherit; font-size: inherit; color: var(--ink); background: none; border: 0; padding: 0; margin-left: 0.4rem;
+          cursor: pointer; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 0.2em; }
+.replay:hover { text-decoration-color: currentColor; }
 
-/* One moment on load: time runs left to right up to "now". */
-.gantt.play .sweep { animation: sweep 2.6s cubic-bezier(.45, 0, .2, 1) both; }
-.gantt.play .now { animation: now 2.6s cubic-bezier(.45, 0, .2, 1) both; }
-@keyframes sweep { from { left: var(--label); } }
-@keyframes now { from { left: var(--label); } }
+/* The handoff: 11860's ticket lifts from the waiting row into slot 3. */
+.chip { position: absolute; z-index: 2; display: flex; align-items: center; padding: 0 0.55rem; border-radius: 3px;
+        font-size: 0.78rem; font-weight: 500; font-variant-numeric: tabular-nums;
+        background: var(--held); color: var(--on-ink); pointer-events: none;
+        transition: transform .55s cubic-bezier(.3, .7, .2, 1), opacity .25s; }
+.bar.handoff[data-lit] { animation: lit 1.2s ease-out; }
+@keyframes lit { from { box-shadow: 0 0 0 4px color-mix(in srgb, var(--held) 35%, transparent); } }
 
 .band { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.6fr); gap: 1.5rem 4rem;
         padding: 4.5rem 0; border-top: 1px solid var(--line); }
@@ -241,5 +250,6 @@ pre .c, .highlight .c, .highlight .c1, .highlight .cm { color: var(--muted); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .gantt.play .sweep, .gantt.play .now { animation: none; }
+  .chip { transition: none; }
+  .bar.handoff[data-lit] { animation: none; }
 }

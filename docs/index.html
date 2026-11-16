@@ -15,22 +15,21 @@ title: slots
   </section>
 
   <figure class="fig" aria-labelledby="fig1-caption">
-    <div class="gantt" role="img" aria-label="Timeline of seven agent slots over an hour. 11860 waits from 10:18 until 11852 releases slot 3 at 10:34, then takes it.">
+    <div class="gantt" style="--now:48" role="img" aria-label="Timeline of seven agent slots over an hour. 11860 waits from 10:18 until 11852 releases slot 3 at 10:34, then takes it.">
       <div class="axis" aria-hidden="true"><span style="--t:0">10:00</span><span style="--t:15">10:15</span><span style="--t:30">10:30</span><span style="--t:45">10:45</span><span style="--t:60">11:00</span></div>
       <div class="lanes">
-        <div class="track"><span class="label">slot 1</span><div class="plot"><i class="bar" style="--s:0;--e:60">10526</i></div></div>
-        <div class="track"><span class="label">slot 2</span><div class="plot"><i class="bar" style="--s:0;--e:22">11854</i><i class="bar" style="--s:24;--e:60">14471</i></div></div>
-        <div class="track key"><span class="label">slot 3</span><div class="plot"><i class="bar" style="--s:0;--e:34">11852</i><i class="bar handoff" style="--s:34;--e:60">11860</i></div></div>
-        <div class="track"><span class="label">slot 4</span><div class="plot"><i class="bar" style="--s:3;--e:60">11863</i></div></div>
-        <div class="track"><span class="label">slot 5</span><div class="plot"><i class="bar" style="--s:0;--e:41">11866</i><i class="bar" style="--s:43;--e:60">11870</i></div></div>
-        <div class="track"><span class="label">slot 6</span><div class="plot"><i class="bar" style="--s:6;--e:60">14469</i></div></div>
-        <div class="track"><span class="label">slot 7</span><div class="plot"><i class="bar" style="--s:0;--e:52">11855</i></div></div>
-        <div class="track queue"><span class="label">waiting</span><div class="plot"><i class="bar wait" style="--s:18;--e:34">11860</i></div></div>
+        <div class="track"><span class="label">slot 1</span><div class="plot"><i class="bar" style="--s:0;--e:60"><span>10526</span></i></div></div>
+        <div class="track"><span class="label">slot 2</span><div class="plot"><i class="bar" style="--s:0;--e:22"><span>11854</span></i><i class="bar" style="--s:24;--e:60"><span>14471</span></i></div></div>
+        <div class="track key"><span class="label">slot 3</span><div class="plot"><i class="bar" style="--s:0;--e:34"><span>11852</span></i><i class="bar handoff" data-handoff style="--s:34;--e:60"><span>11860</span></i></div></div>
+        <div class="track"><span class="label">slot 4</span><div class="plot"><i class="bar" style="--s:3;--e:60"><span>11863</span></i></div></div>
+        <div class="track"><span class="label">slot 5</span><div class="plot"><i class="bar" style="--s:0;--e:41"><span>11866</span></i><i class="bar" style="--s:43;--e:60"><span>11870</span></i></div></div>
+        <div class="track"><span class="label">slot 6</span><div class="plot"><i class="bar" style="--s:6;--e:60"><span>14469</span></i></div></div>
+        <div class="track"><span class="label">slot 7</span><div class="plot"><i class="bar" style="--s:0;--e:52"><span>11855</span></i></div></div>
+        <div class="track queue"><span class="label">waiting</span><div class="plot"><i class="bar wait" data-wait style="--s:18;--e:34"><span>11860</span></i></div></div>
       </div>
-      <div class="sweep" aria-hidden="true"></div>
-      <div class="now" aria-hidden="true" style="--t:48"><span>now</span></div>
+      <div class="now" aria-hidden="true"><span>now</span></div>
     </div>
-    <figcaption id="fig1-caption"><b>Figure 1.</b> An hour on a shared laptop with seven agent slots. At 10:18 every slot is held, so lane 11860 waits in line. When 11852 releases slot 3 at 10:34, 11860 is told at once and takes it. No polling, and no slot left held by a session that crashed.</figcaption>
+    <figcaption id="fig1-caption"><b>Figure 1.</b> An hour on a shared laptop with seven agent slots. At 10:18 every slot is held, so lane 11860 waits in line. When 11852 releases slot 3 at 10:34, 11860 is told at once and takes it. No polling, and no slot left held by a session that crashed. <button type="button" class="replay" hidden>Replay</button></figcaption>
   </figure>
 
   <section class="band" id="setup" aria-labelledby="setup-title">

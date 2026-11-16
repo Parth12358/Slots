@@ -410,7 +410,7 @@ class Broker:
         return 1 + sum(1 for o in self.waiters if o.seq < w.seq and want & set(o.resources))
 
     def blockers(self, w: Waiter) -> list[Lease]:
-        return [l for l in self.leases if l.resource in w.resources]
+        return sorted((l for l in self.leases if l.resource in w.resources), key=lambda l: (l.resource, l.unit))
 
     def snapshot(self) -> dict:
         now = self.clock()

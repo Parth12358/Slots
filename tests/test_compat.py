@@ -140,8 +140,11 @@ class SlotShTest(ShimWorld):
         holders[0].terminate()
         _, errs = w.communicate(timeout=15)
         self.assertEqual(w.returncode, 0)
-        self.assertRegex(errs, r"^waiting for a test slot \(2 in use: 10 vitest \(pid \d+, since \d\d:\d\d:\d\dZ\);"
-                               r"11 vitest \(pid \d+, since \d\d:\d\d:\d\dZ\)\)\n$")
+        # The two holders race for the slots, so either may be listed first.
+        one = r"1[01] vitest \(pid \d+, since \d\d:\d\d:\d\dZ\)"
+        self.assertRegex(errs, rf"^waiting for a test slot \(2 in use: {one};{one}\)\n$")
+        self.assertIn("10 vitest", errs)
+        self.assertIn("11 vitest", errs)
 
 
 class LibSlotTest(ShimWorld):

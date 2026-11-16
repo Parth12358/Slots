@@ -77,6 +77,11 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: actions/configure-pages@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Generate the wiki from the packaged manual
+        run: PYTHONPATH=src python -m slots.manual site docs/wiki
       - uses: actions/jekyll-build-pages@v1
         with:
           source: ./docs

@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 import secrets
+import shutil
 import signal
 import subprocess
 import sys
@@ -459,6 +460,26 @@ def cmd_migrate(ctx: Ctx) -> int:
     return 0
 
 
+def cmd_help(ctx: Ctx) -> int:
+    from slots import manual
+    code, text = manual.help_text(ctx.args.topic)
+    (print if code == 0 else err)(text)
+    return code
+
+
+def cmd_man(ctx: Ctx) -> int:
+    from slots import manual
+    if not ctx.args.install:
+        sys.stdout.write(manual.man_page())
+        return 0
+    target = manual.install_man(Path(ctx.args.dir).expanduser() if ctx.args.dir else None)
+    print(f"wrote {target}; read it with: man slots")
+    found = subprocess.run(["man", "-w", "slots"], capture_output=True, text=True) if shutil.which("man") else None
+    if found is None or found.returncode != 0:
+        print(f"(if man can't find it, add {target.parent.parent} to MANPATH)")
+    return 0
+
+
 def cmd_init(ctx: Ctx) -> int:
     target = Path(ctx.args.path or config.USER_CONFIG).expanduser()
     if target.exists() and not ctx.args.force:
@@ -550,6 +571,13 @@ def parser() -> argparse.ArgumentParser:
     m.add_argument("--locks", help="the old lock folder (default OLD_ROOT/ta-e2e/.locks)")
     m.add_argument("--apply", action="store_true")
 
+    h = sub.add_parser("help", help="the manual: topics, or one topic or command")
+    h.add_argument("topic", nargs="?")
+
+    mn = sub.add_parser("man", help="the whole manual as a man page")
+    mn.add_argument("--install", action="store_true", help="write it to ~/.local/share/man/man1/slots.1")
+    mn.add_argument("--dir", help="the man folder to install under (default ~/.local/share/man)")
+
     i = sub.add_parser("init", help="write a commented example config")
     i.add_argument("--path", help=f"where to write it (default {config.USER_CONFIG})")
     i.add_argument("--force", action="store_true")
@@ -558,7 +586,7 @@ def parser() -> argparse.ArgumentParser:
 
 COMMANDS = {"dash": cmd_dash, "run": cmd_run, "acquire": cmd_acquire, "release": cmd_release, "status": cmd_status,
             "admin": cmd_admin, "daemon": cmd_daemon, "init": cmd_init, "shims": cmd_shims,
-            "migrate": cmd_migrate}
+            "migrate": cmd_migrate, "help": cmd_help, "man": cmd_man}
 
 
 def main(argv: list[str] | None = None) -> int:

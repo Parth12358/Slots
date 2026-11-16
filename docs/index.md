@@ -37,6 +37,25 @@ slots migrate --from ~/old/root --apply    # adopts live holders; old files are 
 slots shims install --dir ~/old/root       # agent-slot.sh with the same arguments and output
 ```
 
+## Manual
+
+The full manual is the [wiki](wiki/index.md). Every page is also in the terminal, offline:
+`slots help <topic>`, and `slots man --install` then `man slots`.
+
+| | |
+|---|---|
+| [Quick start](wiki/quickstart.md) | install, first config, the five commands |
+| [For agents](wiki/agents.md) | the rules for Claude Code sessions: read before running anything heavy |
+| [Concepts](wiki/concepts.md) | pools, locks, leases, lanes, the queue, crash safety |
+| [Commands](wiki/cli.md) | every command, option and exit code |
+| [Config](wiki/config.md) | every setting, with defaults |
+| [Dashboard](wiki/dashboard.md) | panels, Needs you, keys |
+| [Old scripts](wiki/compat.md) | shims, migration, the Node client |
+| [Troubleshooting](wiki/troubleshooting.md) | "I see X, what do I do?" |
+
+**Agents setting up:** fetch [wiki/all.txt](wiki/all.txt), the whole manual as plain text in one
+file, or start from [llms.txt](llms.txt).
+
 ## More
 
 - [Design](design.md): the broker, its failure modes, state, CLI, and the Claude Code hook plan.

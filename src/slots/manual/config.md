@@ -11,7 +11,13 @@ example. The daemon reloads the file within 2 s of a change; a file that doesn't
 |---|---|---|
 | `root` | none | the folder holding one folder per lane |
 | `pattern` | `^(?P<ticket>.+)$` | regex on a lane folder's name; the lane id is the `ticket` group, or the whole match. Folders that don't match aren't lanes. |
-| `processes` | `\b(node\|vitest\|playwright\|tsx)\b` | processes started outside slots count as a lane's when their command line or folder is in the lane and their command matches this |
+| `processes` | node, vitest, playwright or tsx | a regex: processes started outside slots count as a lane's when their command line or folder is in the lane and their command matches it |
+
+The default `processes` regex, exactly:
+
+```toml
+processes = '\b(node|vitest|playwright|tsx)\b'
+```
 
 ## [pool.NAME]
 

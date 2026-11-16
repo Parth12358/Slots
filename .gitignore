@@ -1,0 +1,10 @@
+/extracted/
+/rebuild.zip
+__pycache__/
+*.egg-info/
+/build/
+/dist/
+.venv/
+# The original scripts and brief hold work-machine details; kept local, not published.
+/reference/
+/PROMPT.md

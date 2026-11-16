@@ -125,7 +125,7 @@ class SlotShTest(ShimWorld):
             self.assertEqual(r.stderr.strip(), "usage: slot.sh [--label <who>] -- <command...>")
 
     def test_exit_code_and_label(self):
-        r = self.sh(str(self.bin / "slot.sh"), "--label", "11865 vitest", "--", "sh", "-c", "exit 9")
+        r = self.sh(str(self.bin / "slot.sh"), "--label", "308 vitest", "--", "sh", "-c", "exit 9")
         self.assertEqual(r.returncode, 9)
 
     def test_waits_for_a_test_slot(self):

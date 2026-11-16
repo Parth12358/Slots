@@ -27,11 +27,11 @@ class ClaudeWorld(World):
         self.assertEqual(r.returncode, 0, r.stderr)
         return json.loads(r.stdout) if r.stdout.strip() else None, r
 
-    def start(self, sid="s1", lane="10526", **kw):
+    def start(self, sid="s1", lane="301", **kw):
         self.lane(lane)
         return self.hook("session-start", {"session_id": sid, "cwd": str(self.root / lane), "source": "startup"}, **kw)
 
-    def bash(self, command, sid="s1", lane="10526", **extra):
+    def bash(self, command, sid="s1", lane="301", **extra):
         return self.hook("pre-tool-use", {"session_id": sid, "cwd": str(self.root / lane), "tool_name": "Bash",
                                           "tool_input": {"command": command, "description": "x", **extra}})[0]
 
@@ -45,11 +45,11 @@ class HookTest(ClaudeWorld):
         out, _ = self.start(env={"CLAUDE_ENV_FILE": str(env_file)})
         ctx = out["hookSpecificOutput"]
         self.assertEqual(ctx["hookEventName"], "SessionStart")
-        self.assertIn("Lane 10526 holds no agent slot (0/2 in use)", ctx["additionalContext"])
+        self.assertIn("Lane 301 holds no agent slot (0/2 in use)", ctx["additionalContext"])
         self.assertIn("slots acquire agent --wait", ctx["additionalContext"])
-        self.assertEqual(env_file.read_text(), "export SLOTS_SESSION=s1\nexport SLOTS_LANE=10526\n")
+        self.assertEqual(env_file.read_text(), "export SLOTS_SESSION=s1\nexport SLOTS_LANE=301\n")
         (s,) = self.sessions()
-        self.assertEqual((s["id"], s["lane"], s["pid"], s["state"]), ("s1", "10526", self.claude.pid, "idle"))
+        self.assertEqual((s["id"], s["lane"], s["pid"], s["state"]), ("s1", "301", self.claude.pid, "idle"))
 
     def test_outside_a_lane(self):
         out, _ = self.hook("session-start", {"session_id": "s9", "cwd": str(self.dir)})
@@ -62,7 +62,7 @@ class HookTest(ClaudeWorld):
         out = self.bash("cd web && npx vitest run --reporter dot")
         o = out["hookSpecificOutput"]
         self.assertEqual((o["hookEventName"], o["permissionDecision"]), ("PreToolUse", "deny"))
-        self.assertIn("lane 10526 holds no agent slot", o["permissionDecisionReason"])
+        self.assertIn("lane 301 holds no agent slot", o["permissionDecisionReason"])
         self.assertIn("slots acquire agent --wait", o["permissionDecisionReason"])
         self.assertIn("slots run test -- cd web && npx vitest run", o["permissionDecisionReason"])
         o = self.bash("docker compose up -d")["hookSpecificOutput"]
@@ -74,13 +74,13 @@ class HookTest(ClaudeWorld):
         for cmd in ("git status", "npx vitest run --help" if False else "ls -la", "cat package.json",
                     "slots acquire agent --wait", "slots status"):
             self.assertIsNone(self.bash(cmd), cmd)
-        out, _ = self.hook("pre-tool-use", {"session_id": "s1", "cwd": str(self.root / "10526"), "tool_name": "Read",
+        out, _ = self.hook("pre-tool-use", {"session_id": "s1", "cwd": str(self.root / "301"), "tool_name": "Read",
                                             "tool_input": {"file_path": "x"}})
         self.assertIsNone(out)
 
     def test_with_a_slot_heavy_runs(self):
         self.start()
-        r = self.slots("acquire", "agent", lane="10526", env={"SLOTS_SESSION": "s1"}, check=0)
+        r = self.slots("acquire", "agent", lane="301", env={"SLOTS_SESSION": "s1"}, check=0)
         self.assertIn("took agent slot 1", r.stdout)
         h = self.resource("agent")["holders"][0]
         self.assertEqual((h["kind"], h["owner"]["pid"], h["owner"]["session"]), ("pid", self.claude.pid, "s1"),
@@ -89,19 +89,19 @@ class HookTest(ClaudeWorld):
 
     def test_a_slot_taken_by_hand_for_the_lane_counts(self):
         self.start()
-        self.slots("acquire", "agent", lane="10526", check=0)   # no session
+        self.slots("acquire", "agent", lane="301", check=0)   # no session
         self.assertIsNone(self.bash("npm run build"))
 
     def test_another_sessions_slot_does_not_count(self):
         self.start("s1")
         self.start("s2")
-        self.slots("acquire", "agent", lane="10526", env={"SLOTS_SESSION": "s2"}, check=0)
+        self.slots("acquire", "agent", lane="301", env={"SLOTS_SESSION": "s2"}, check=0)
         self.assertEqual(self.bash("npm run build", sid="s1")["hookSpecificOutput"]["permissionDecision"], "deny")
 
     def test_session_end_releases_everything(self):
         self.start()
-        self.slots("acquire", "agent", lane="10526", env={"SLOTS_SESSION": "s1"}, check=0)
-        self.slots("acquire", "e2e", lane="10526", env={"SLOTS_SESSION": "s1"}, check=0)
+        self.slots("acquire", "agent", lane="301", env={"SLOTS_SESSION": "s1"}, check=0)
+        self.slots("acquire", "e2e", lane="301", env={"SLOTS_SESSION": "s1"}, check=0)
         _, r = self.hook("session-end", {"session_id": "s1", "reason": "prompt_input_exit"})
         self.assertIn("slots: released agent slot 1, e2e", r.stderr)
         self.assertEqual((self.resource("agent")["in_use"], self.resource("e2e")["in_use"]), (0, 0))
@@ -109,7 +109,7 @@ class HookTest(ClaudeWorld):
 
     def test_session_process_death_releases_everything(self):
         self.start()
-        self.slots("acquire", "agent", lane="10526", env={"SLOTS_SESSION": "s1"}, check=0)
+        self.slots("acquire", "agent", lane="301", env={"SLOTS_SESSION": "s1"}, check=0)
         os.killpg(self.claude.pid, 9)
         self.claude.wait()
         self.until(lambda: self.resource("agent")["in_use"] == 0 and not self.sessions(), timeout=8,
@@ -117,15 +117,15 @@ class HookTest(ClaudeWorld):
 
     def test_busy_idle_and_unknown_sessions(self):
         self.start()
-        self.hook("user-prompt", {"session_id": "s1", "cwd": str(self.root / "10526"), "prompt": "go"})
+        self.hook("user-prompt", {"session_id": "s1", "cwd": str(self.root / "301"), "prompt": "go"})
         self.assertEqual(self.sessions()[0]["state"], "busy")
-        self.hook("stop", {"session_id": "s1", "cwd": str(self.root / "10526")})
+        self.hook("stop", {"session_id": "s1", "cwd": str(self.root / "301")})
         self.assertEqual(self.sessions()[0]["state"], "idle")
-        self.hook("notification", {"session_id": "s1", "cwd": str(self.root / "10526"), "notification_type": "idle_prompt"})
+        self.hook("notification", {"session_id": "s1", "cwd": str(self.root / "301"), "notification_type": "idle_prompt"})
         self.assertEqual(self.sessions()[0]["idle_prompts"], 1)
         # A session the daemon never saw (hooks installed mid-session) is registered on first contact.
-        self.hook("user-prompt", {"session_id": "late", "cwd": str(self.root / "11852"), "prompt": "x"})
-        self.lane("11852")
+        self.hook("user-prompt", {"session_id": "late", "cwd": str(self.root / "302"), "prompt": "x"})
+        self.lane("302")
         self.assertIn("late", [s["id"] for s in self.sessions()])
 
     def test_a_broken_hook_never_breaks_the_session(self):
@@ -146,19 +146,19 @@ class WrapTest(ClaudeWorld):
 
     def test_wrap_mode_runs_heavy_commands_in_a_test_slot(self):
         self.start()
-        self.slots("acquire", "agent", lane="10526", env={"SLOTS_SESSION": "s1"}, check=0)
+        self.slots("acquire", "agent", lane="301", env={"SLOTS_SESSION": "s1"}, check=0)
         o = self.bash("npx vitest run 'a b'", run_in_background=False)["hookSpecificOutput"]
         new = o["updatedInput"]
         self.assertEqual((new["description"], new["run_in_background"]), ("x", False), "other fields kept")
-        self.assertIn(" run test --label '10526 npx' -- bash -c ", new["command"])
+        self.assertIn(" run test --label '301 npx' -- bash -c ", new["command"])
         r = subprocess.run(new["command"].replace("npx vitest run", "echo"), shell=True, env=self.env,
                            capture_output=True, text=True, cwd=self.dir, timeout=30)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIsNone(self.bash("slots run test -- npx vitest run"), "already wrapped")
         self.assertIsNone(self.bash("docker compose up"), "stacks aren't wrapped")
         # Without the agent slot it's still blocked.
-        self.start("s2", lane="11852")
-        self.assertEqual(self.bash("npx vitest run", sid="s2", lane="11852")["hookSpecificOutput"]["permissionDecision"],
+        self.start("s2", lane="302")
+        self.assertEqual(self.bash("npx vitest run", sid="s2", lane="302")["hookSpecificOutput"]["permissionDecision"],
                          "deny")
 
 

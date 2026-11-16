@@ -27,7 +27,7 @@ for (const button of document.querySelectorAll("[data-copy]")) {
 const gantt = document.querySelector(".gantt");
 if (gantt) {
   const NOW = 48;          // minutes past 10:00 where the figure stops
-  const HANDOFF = 34;      // 11852 releases slot 3; 11860 takes it
+  const HANDOFF = 34;      // agent 3 releases slot 3; agent 9 takes it
   const label = gantt.querySelector(".now span");
   const wait = gantt.querySelector("[data-wait]");
   const hand = gantt.querySelector("[data-handoff]");
@@ -55,7 +55,7 @@ if (gantt) {
 
   const pause = (ms) => new Promise((done) => setTimeout(done, ms));
 
-  // 11860's ticket lifts from the end of its wait, straight up into slot 3 at 10:34.
+  // agent 9's ticket lifts from the end of its wait, straight up into slot 3 at 10:34.
   const handoff = async (id) => {
     const box = gantt.getBoundingClientRect();
     const from = wait.getBoundingClientRect();

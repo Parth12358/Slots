@@ -57,29 +57,29 @@ def mach(procs=(), ports=(), **kw):
 
 class ModelTest(unittest.TestCase):
     def test_exact_attribution_follows_the_holders_process_tree(self):
-        s = state([lease("agent", 1, "10526", kind="pid", pid=100)])
+        s = state([lease("agent", 1, "301", kind="pid", pid=100)])
         m = mach([proc(100, 1, "bash"), proc(101, 100, "node server.js", cpu=50), proc(102, 101, "esbuild"),
                   proc(200, 1, "node other")], ports=[{"cmd": "node", "pid": 101, "port": 4352}])
         model = dashboard.build(s, m, cfg(), now=T0 + 60)
         ln = model["lanes"][0]
-        self.assertEqual((ln["name"], ln["pids"], ln["ports"]), ("10526", [100, 101, 102], [4352]))
+        self.assertEqual((ln["name"], ln["pids"], ln["ports"]), ("301", [100, 101, 102], [4352]))
         self.assertEqual(ln["fallback"], set())
 
     def test_fallback_by_command_line_and_folder(self):
-        m = mach([proc(300, 1, "node /lanes/11852/node_modules/.bin/vite"), proc(301, 1, "node server.js"),
-                  proc(302, 1, "vim /lanes/11852/a.ts"), proc(303, 1, "node /lanes/ta-e2e/x.js")], cwds={301: "11860"})
+        m = mach([proc(300, 1, "node /lanes/302/node_modules/.bin/vite"), proc(301, 1, "node server.js"),
+                  proc(302, 1, "vim /lanes/302/a.ts"), proc(303, 1, "node /lanes/ta-e2e/x.js")], cwds={301: "306"})
         model = dashboard.build(state(), m, cfg(), now=T0)
         lanes = {l["name"]: l for l in model["lanes"]}
-        self.assertEqual(lanes["11852"]["pids"], [300], "vim doesn't match the process pattern")
-        self.assertEqual(lanes["11860"]["fallback"], {301}, "found by working folder")
+        self.assertEqual(lanes["302"]["pids"], [300], "vim doesn't match the process pattern")
+        self.assertEqual(lanes["306"]["fallback"], {301}, "found by working folder")
         self.assertNotIn("ta-e2e", lanes, "folders that aren't lanes are ignored")
 
     def test_idle_needs_you(self):
-        s = state([lease("agent", 1, "10526"), lease("agent", 2, "11852", lid="y")])
-        m = mach([proc(300, 1, "node /lanes/11852/x.js")])
+        s = state([lease("agent", 1, "301"), lease("agent", 2, "302", lid="y")])
+        m = mach([proc(300, 1, "node /lanes/302/x.js")])
         needs = dashboard.build(s, m, cfg(), now=T0 + 31 * 60)["needs"]
         self.assertEqual(len(needs), 1)
-        self.assertIn("idle? 10526 holds agent slot 1 with no processes for 31m; no pid ties it", needs[0]["text"])
+        self.assertIn("idle? 301 holds agent slot 1 with no processes for 31m; no pid ties it", needs[0]["text"])
         self.assertEqual(needs[0]["fix"]["lease"]["id"], "x")
         self.assertEqual(dashboard.build(s, m, cfg(), now=T0 + 29 * 60)["needs"], [])
 
@@ -115,15 +115,15 @@ class ModelTest(unittest.TestCase):
         self.assertEqual(dashboard.kill_targets(ln, m, cfg()), [1, 5])
 
     def test_text(self):
-        s = state([lease("agent", 1, "10526", kind="pid", pid=100)])
-        s["events"] = [{"ts": T0, "kind": "granted", "lane": "10526", "label": "10526", "resources": ["agent#1"],
+        s = state([lease("agent", 1, "301", kind="pid", pid=100)])
+        s["events"] = [{"ts": T0, "kind": "granted", "lane": "301", "label": "301", "resources": ["agent#1"],
                         "waited": 0}]
         out = dashboard.text(dashboard.build(s, mach([proc(100, 1, "bash")]), cfg(), now=T0 + 60), actions=True)
         self.assertIn("LANES  1", out)
         self.assertIn("AGENT  pool  1/2 in use", out)
-        self.assertIn("10526 took agent#1", out)
+        self.assertIn("301 took agent#1", out)
         self.assertIn("MACHINE", out)
-        self.assertRegex(out, r"\* +#1 10526")
+        self.assertRegex(out, r"\* +#1 301")
 
 
 class ConfigEditTest(unittest.TestCase):
@@ -208,7 +208,7 @@ class LiveTest(World):
         return drive([sys.executable, "-m", "slots", "dash", *args], env, list(keys), **kw)
 
     def test_once_without_a_terminal(self):
-        self.slots("acquire", "agent", lane="10526", check=0)
+        self.slots("acquire", "agent", lane="301", check=0)
         r = self.slots("dash", "--once", check=0)
         self.assertIn("AGENT  pool  1/2 in use", r.stdout)
         self.assertIn("LANES", r.stdout)
@@ -218,27 +218,27 @@ class LiveTest(World):
         self.slots("dash", check=2)
 
     def test_status_full_json(self):
-        self.slots("acquire", "agent", lane="10526", check=0)
+        self.slots("acquire", "agent", lane="301", check=0)
         state = json.loads(self.slots("status", "--json", "--full", check=0).stdout)
-        self.assertEqual([l["name"] for l in state["lanes"]], ["10526"])
+        self.assertEqual([l["name"] for l in state["lanes"]], ["301"])
         self.assertIn("load", state["machine"])
 
     def test_renders_in_every_mode_and_size(self):
-        self.slots("acquire", "agent", lane="10526", check=0)
+        self.slots("acquire", "agent", lane="301", check=0)
         for args, size in [((), (45, 160)), (("--unicode",), (45, 160)), (("--transparent",), (24, 80)),
                            ((), (8, 30))]:
             with self.subTest(args=args, size=size):
                 code, out = self.dash(*args, keys=["j", "?", "?", "d", "q"], rows=size[0], cols=size[1])
                 self.assertEqual(code, 0)
                 if size[0] >= 10:
-                    for word in ("lanes", "resources", "10526"):
+                    for word in ("lanes", "resources", "301"):
                         self.assertIn(word, out)
                 else:
                     self.assertIn("terminal too small", out)
 
     def test_release_from_the_dashboard_asks_first(self):
-        self.slots("acquire", "agent", lane="10526", check=0)
-        # rows with actions: lane 10526, the agent pool, its lease ...
+        self.slots("acquire", "agent", lane="301", check=0)
+        # rows with actions: lane 301, the agent pool, its lease ...
         code, _ = self.dash(keys=["j", "j", "r", "n", "q"])
         self.assertEqual(code, 0)
         self.assertEqual(self.resource("agent")["in_use"], 1, "n keeps it")

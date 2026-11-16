@@ -206,7 +206,7 @@ pre .c, .highlight .c, .highlight .c1, .highlight .cm { color: var(--muted); }
           cursor: pointer; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 0.2em; }
 .replay:hover { text-decoration-color: currentColor; }
 
-/* The handoff: 11860's ticket lifts from the waiting row into slot 3. */
+/* The handoff: agent 9's ticket lifts from the waiting row into slot 3. */
 .chip { position: absolute; z-index: 2; display: flex; align-items: center; padding: 0 0.55rem; border-radius: 3px;
         font-size: 0.78rem; font-weight: 500; font-variant-numeric: tabular-nums;
         background: var(--held); color: var(--on-ink); pointer-events: none;

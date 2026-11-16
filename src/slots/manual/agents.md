@@ -26,7 +26,7 @@ another lane's test run.
 ## Which lane am I?
 
 The lane is the folder directly under the configured root that your working directory is in
-(e.g. `~/dev/lanes/10526/...` is lane `10526`). Outside a lane, pass `--lane <ticket>` or set
+(e.g. `~/dev/lanes/agent-1/...` is lane `agent-1`). Outside a lane, pass `--lane <ticket>` or set
 `SLOTS_LANE`. `slots status` shows what you hold.
 
 ## What the messages mean

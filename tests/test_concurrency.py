@@ -185,10 +185,10 @@ class IdentityTest(World):
         self.slots("acquire", "next-employee:other@example.com", lane="2", check=0)
 
     def test_status_text_and_json(self):
-        self.slots("acquire", "agent", lane="10526", check=0)
+        self.slots("acquire", "agent", lane="301", check=0)
         r = self.slots("status", check=0)
         self.assertIn("AGENT  pool  1/2 in use", r.stdout)
-        self.assertIn("10526", r.stdout)
+        self.assertIn("301", r.stdout)
         state = json.loads(self.slots("status", "--json", check=0).stdout)
         self.assertIn("daemon", state)
         self.assertEqual({x["name"] for x in state["resources"]}, {"agent", "test", "e2e", "next-mock-core"})

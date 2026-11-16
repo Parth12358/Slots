@@ -66,11 +66,11 @@ class ConfigTest(unittest.TestCase):
 
     def test_lane_of(self):
         c = cfg(BASE)
-        self.assertEqual(c.lane_of("/work/lanes/10526"), "10526")
-        self.assertEqual(c.lane_of("/work/lanes/10526/services/api"), "10526")
+        self.assertEqual(c.lane_of("/work/lanes/301"), "301")
+        self.assertEqual(c.lane_of("/work/lanes/301/services/api"), "301")
         self.assertIsNone(c.lane_of("/work/lanes"))
         self.assertIsNone(c.lane_of("/work/lanes/ta-e2e"))
-        self.assertIsNone(c.lane_of("/elsewhere/10526"))
+        self.assertIsNone(c.lane_of("/elsewhere/301"))
 
     def test_device_override_by_hostname(self):
         text = BASE + '[device.desktop]\nmatch = "big-*"\npool.agent.size = 12\n'

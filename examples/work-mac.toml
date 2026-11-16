@@ -2,7 +2,7 @@
 
 [lanes]
 root = "~/Documents/dev/interface"
-pattern = '^(?P<ticket>\d+)$'          # lane folders are bare ticket numbers, e.g. 10526
+pattern = '^(?P<ticket>\d+)$'          # lane folders are bare ticket numbers, e.g. 1234
 
 [pool.agent]
 size = 7

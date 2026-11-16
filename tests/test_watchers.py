@@ -91,23 +91,23 @@ class LaneSetupTest(WatcherWorld):
         self.until(lambda: socket.socket().connect_ex(("127.0.0.1", port)) == 0, what="server up")
         return p
 
-    def runs(self, lane="10526"):
+    def runs(self, lane="301"):
         f = self.root / lane / "runs"
         return f.read_text().count("run") if f.exists() else 0
 
     def test_runs_when_the_artifact_is_older_than_the_stack(self):
-        lane = self.lane("10526")
-        self.lane("11852")   # its port isn't up: never run
-        port = int(self.slots("port", "10526", "ui", check=0).stdout)
+        lane = self.lane("301")
+        self.lane("302")   # its port isn't up: never run
+        port = int(self.slots("port", "301", "ui", check=0).stdout)
         server = self.serve(port)
-        self.assertIn("ran it for 10526", self.flag("signin:10526", "ok")["text"])
+        self.assertIn("ran it for 301", self.flag("signin:301", "ok")["text"])
         self.assertTrue((lane / "auth.json").exists())
         self.assertEqual(self.runs(), 1)
-        self.assertEqual(self.flag("signin:10526")["state"], "ok")
+        self.assertEqual(self.flag("signin:301")["state"], "ok")
         time.sleep(2.5)
         self.assertEqual(self.runs(), 1, "the artifact is newer than the stack: nothing to do")
-        self.assertIn("up to date", self.flags()["signin:10526"]["text"])
-        self.assertEqual(self.runs("11852"), 0)
+        self.assertIn("up to date", self.flags()["signin:301"]["text"])
+        self.assertEqual(self.runs("302"), 0)
 
         # The stack restarts: its process is newer than the artifact, so it runs again.
         server.kill()
@@ -117,27 +117,27 @@ class LaneSetupTest(WatcherWorld):
         self.until(lambda: self.runs() == 2, what="a second run")
 
     def test_failure_is_flagged_and_retried(self):
-        lane = self.lane("10526")
+        lane = self.lane("301")
         (lane / "fail").touch()
-        port = int(self.slots("port", "10526", "ui", check=0).stdout)
+        port = int(self.slots("port", "301", "ui", check=0).stdout)
         self.serve(port)
-        f = self.flag("signin:10526", "bad")
-        self.assertIn("failed for 10526 (exit 3); will retry", f["text"])
+        f = self.flag("signin:301", "bad")
+        self.assertIn("failed for 301 (exit 3); will retry", f["text"])
         self.until(lambda: self.runs() >= 2, what="a retry")
         (lane / "fail").unlink()
-        self.flag("signin:10526", "ok", text="ran it")
-        log = (self.home / "watchers" / "signin-10526.log").read_text()
+        self.flag("signin:301", "ok", text="ran it")
+        log = (self.home / "watchers" / "signin-301.log").read_text()
         self.assertIn("exit 3", log)
 
     def test_waits_for_its_locks(self):
-        self.lane("10526")
+        self.lane("301")
         self.slots("acquire", "e2e", lane="99", check=0)
-        port = int(self.slots("port", "10526", "ui", check=0).stdout)
+        port = int(self.slots("port", "301", "ui", check=0).stdout)
         self.serve(port)
         self.until(lambda: self.queue_len("e2e") == 1, what="the setup run to queue for e2e")
         self.assertEqual(self.runs(), 0)
         self.slots("release", "e2e", lane="99", check=0)
-        self.flag("signin:10526", "ok", text="ran it")
+        self.flag("signin:301", "ok", text="ran it")
         self.assertEqual(self.runs(), 1)
 
 

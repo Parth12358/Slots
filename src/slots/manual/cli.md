@@ -48,8 +48,8 @@ slots port <lane> [<service>] --release
 ```
 
 A stable port for a lane's service: the same one every time, never one another lane holds, a
-protected one, or one something already listens on. Prints the number (`PORT=$(slots port 10526
-ui)`), or `UI_PORT=4352` with `--env`: `slots port 10526 --env > .env.slots` writes a fragment for
+protected one, or one something already listens on. Prints the number (`PORT=$(slots port agent-1
+ui)`), or `UI_PORT=4352` with `--env`: `slots port agent-1 --env > .env.slots` writes a fragment for
 the lane to read. `--want N` asks for a specific port, refused (exit 1) if another lane holds it.
 `--release` gives one port, or all the lane's, back; asking again later gives the same port.
 

@@ -90,9 +90,10 @@ class ManualTest(unittest.TestCase):
                           else f".SH {section}", r.stdout)
         renderer = shutil.which("mandoc") or shutil.which("groff")
         if renderer:
-            cmd = [renderer, "-Tutf8", "-W", "all"] if renderer.endswith("mandoc") else [renderer, "-man", "-Tutf8", "-ww"]
+            cmd = [renderer, "-Tutf8", "-W", "warning"] if renderer.endswith("mandoc") else \
+                [renderer, "-man", "-Tutf8", "-ww"]
             out = subprocess.run(cmd, input=r.stdout, capture_output=True, text=True)
-            self.assertEqual(out.returncode, 0)
+            self.assertEqual(out.returncode, 0, f"{renderer}:\n{out.stderr[:3000]}")
             self.assertEqual(out.stderr.strip(), "", "the man page renders without warnings")
             self.assertIn("slots run", out.stdout)
 

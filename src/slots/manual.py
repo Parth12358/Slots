@@ -127,7 +127,31 @@ def man_page() -> str:
     for t in TOPICS:
         lines += to_roff(page(t))
     lines += [".SH SEE ALSO", f"{SITE}/wiki/ and \\fBslots help\\fR <topic>."]
-    return "\n".join(l for l in lines) + "\n"
+    return "\n".join(tidy(lines)) + "\n"
+
+
+BLOCK = (".SH", ".SS", ".PP", ".TP", ".IP", ".RS")
+
+
+def tidy(lines: list[str]) -> list[str]:
+    """What strict checkers (mandoc -W warning) want: no paragraph macro right after a heading or
+    before another block, no blank text lines outside no-fill blocks, no trailing whitespace."""
+    out: list[str] = []
+    nofill = False
+    for i, line in enumerate(lines):
+        line = line.rstrip()
+        nxt = next((l for l in lines[i + 1:] if l.strip()), "")
+        if line == ".nf":
+            nofill = True
+        elif line == ".fi":
+            nofill = False
+        if line == ".PP" and (not out or out[-1].startswith((".SH", ".SS", ".PP", ".TH"))
+                              or nxt.startswith(BLOCK) or not nxt):
+            continue
+        if not line and not nofill:
+            continue
+        out.append(line)
+    return out
 
 
 def install_man(base: Path | None = None) -> Path:

@@ -75,6 +75,10 @@ def build(state: dict, mach: dict, cfg: config.Config, *, now: float | None = No
             if lm:
                 lane(lm.groupdict().get("ticket") or lm.group(0))["fallback"].add(p["pid"])
 
+    port_leases = state.get("ports", [])
+    for pl in port_leases:
+        lane(pl["lane"]).setdefault("leased", []).append(pl)
+
     for ln in lanes.values():
         pids = ln["exact"] | ln["fallback"]
         ln["pids"] = sorted(pids)
@@ -126,6 +130,14 @@ def build(state: dict, mach: dict, cfg: config.Config, *, now: float | None = No
         elif age >= warn["long_held_h"] * 3600:
             needs.append({"level": "warn", "text": f"long-held: {name} has held {what} for {fmt.dur(age)}",
                           "fix": act, "fix_label": "release"})
+    owner_of = {p: l["name"] for l in lanes.values() for p in l["pids"]}
+    listening = {p["port"]: p for p in mach.get("ports", [])}
+    for pl in port_leases:
+        user = listening.get(pl["port"])
+        other = owner_of.get(user["pid"]) if user else None
+        if other and other != pl["lane"]:
+            needs.append({"level": "warn", "text": f"port {pl['port']} is leased to lane {pl['lane']} ({pl['service']}) "
+                          f"but lane {other} is listening on it (pid {user['pid']} {user['cmd']})", "fix": None})
     for r in state["resources"]:
         for w in r["queue"]:
             if r["name"] == w["resources"][0] and w["waited"] >= warn["wait_min"] * 60:
@@ -140,7 +152,7 @@ def build(state: dict, mach: dict, cfg: config.Config, *, now: float | None = No
     claude_ports = [p for p in mach.get("ports", []) if CLAUDE_CMD.match(p["cmd"])]
     return {
         "now": now, "needs": needs, "lanes": sorted(lanes.values(), key=lambda l: (-l["cpu"], l["name"])),
-        "sessions": sessions,
+        "sessions": sessions, "port_leases": port_leases, "flags": state.get("flags", []),
         "resources": state["resources"], "events": state.get("events", [])[-40:], "daemon": daemon,
         "ports": dev_ports, "hidden_ports": len(mach.get("ports", [])) - len(dev_ports),
         "claude_ports": len(claude_ports), "containers": mach.get("containers"), "machine": mach,
@@ -189,6 +201,12 @@ def event_text(e: dict) -> str:
         return f"session {e.get('session', '')[:8]} ended ({e.get('why')}){rel}"
     if kind == "session-ended":
         return f"released {e.get('resource')}#{e.get('unit')} as {who}'s session ended"
+    if kind == "port":
+        return f"{who} leased port {e.get('port')} for {e.get('service')}"
+    if kind == "port-released":
+        return f"{who} released port {e.get('port')} ({e.get('service')})"
+    if kind == "flag":
+        return f"{who}: {e.get('state')}: {e.get('text')}"
     if kind == "daemon-start":
         return f"daemon started (pid {e.get('pid')}; {e.get('leases', 0)} leases, {e.get('waiters', 0)} waiting)"
     if kind == "imported":
@@ -227,6 +245,8 @@ def text(model: dict, *, actions: bool = False) -> str:
         if ln["fallback"]:
             procs += f" ({len(ln['fallback'])} by folder)"
         ports = ("  " + " ".join(f":{p}" for p in ln["ports"][:6])) if ln["ports"] else ""
+        if ln.get("leased"):
+            ports += "  leased " + " ".join(f"{p['service']}:{p['port']}" for p in ln["leased"])
         wait = ("  waiting for " + ", ".join(",".join(w["resources"]) for w in ln["waiting"])) if ln["waiting"] else ""
         line(f"{ln['name']:<10} {held or '-':<24} {procs}{ports}{wait}", {"kind": "lane"} if ln["pids"] else None)
     for r in model["resources"]:
@@ -243,6 +263,10 @@ def text(model: dict, *, actions: bool = False) -> str:
     out.append(f"ACTIVITY  last {min(8, len(model['events']))}")
     for e in model["events"][-8:]:
         line(f"{fmt.clock(e['ts'])}  {event_text(e)}")
+    out.append(f"PORT LEASES  {len(model['port_leases'])}")
+    listening = {p["port"] for p in model["ports"]} | {p["port"] for p in model["machine"].get("ports", [])}
+    for pl in model["port_leases"]:
+        line(f":{pl['port']:<6} {pl['lane']:<10} {pl['service']:<14} {'listening' if pl['port'] in listening else 'not up'}")
     out.append(f"PORTS  {len(model['ports'])} dev (+{model['claude_ports']} Claude, "
                f"{model['hidden_ports'] - model['claude_ports']} other hidden)")
     for p in model["ports"]:

@@ -24,6 +24,9 @@ long_held_h = 12                       # "long-held" after 12 h
 idle_min = 30                          # "idle?" after 30 min with no lane processes
 wait_min = 60
 
+[ports]                                # slots port <lane> <service>
+range = [43000, 44999]
+
 [protect]                              # shared; the dashboard never stops these
 containers = ["be-postgres", "redis"]
 ports = [5432, 6431]

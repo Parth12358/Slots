@@ -48,10 +48,10 @@ class ManualTest(unittest.TestCase):
     def test_every_config_table_and_key_is_documented(self):
         page = manual.page("config")
         for table in ("lanes", "pool.NAME", "lock.NAME", "family.NAME", "device.NAME", "warn", "protect",
-                      "compat", "claude", "cluster"):
+                      "compat", "claude", "ports", "cluster"):
             self.assertIn(f"## [{table}]", page)
         for key in [*config.WARN_DEFAULTS, *config.COMPAT_DEFAULTS, "root", "pattern", "processes", "size",
-                    "hold", "ttl", "name", "key", "normalize", "match", "containers", "ports"]:
+                    "hold", "ttl", "name", "key", "normalize", "match", "containers", "ports", "range", "env"]:
             self.assertIn(f"`{key}`", page, key)
 
     def test_every_environment_variable_is_documented(self):

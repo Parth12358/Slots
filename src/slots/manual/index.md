@@ -23,6 +23,6 @@ Read it in the terminal with `slots help <topic>`, as a man page with `man slots
 | [troubleshooting](troubleshooting.md) | "I see X, what do I do?" |
 
 Built so far: the broker and CLI, the compatibility shims and migration, the dashboard, and the
-Claude Code hooks and skill. Coming next: port leases, watchers (credential freshness, lane
+Claude Code hooks and skill, and port leases. Coming next: watchers (credential freshness, lane
 setup), and optional sharing across machines. The design is in
 [design](https://parth12358.github.io/Slots/design.html).

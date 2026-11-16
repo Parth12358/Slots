@@ -68,6 +68,7 @@ class Config:
     device: str | None = None
     compat: dict = field(default_factory=dict)
     warn: dict = field(default_factory=dict)
+    ports: dict = field(default_factory=dict)
     protect: dict = field(default_factory=dict)
     process_pattern: re.Pattern = field(default_factory=lambda: re.compile(DEFAULT_PROCESS_PATTERN))
     raw: dict = field(default_factory=dict)
@@ -220,6 +221,16 @@ def from_dict(raw: dict, path: Path | None = None) -> Config:
     for k in WARN_DEFAULTS:
         if not isinstance(cfg.warn[k], (int, float)) or cfg.warn[k] <= 0:
             raise ConfigError(f"warn.{k} must be a positive number")
+    ports = merged.get("ports", {})
+    rng = ports.get("range", [20000, 29999])
+    if (not isinstance(rng, list) or len(rng) != 2 or not all(isinstance(x, int) for x in rng)
+            or not 1024 <= rng[0] < rng[1] <= 65535):
+        raise ConfigError("ports.range must be [low, high] between 1024 and 65535")
+    env = ports.get("env", "{SERVICE}_PORT")
+    if "{SERVICE}" not in env and "{service}" not in env:
+        raise ConfigError("ports.env must contain {SERVICE} or {service}")
+    cfg.ports = {"range": rng, "env": env}
+
     protect = merged.get("protect", {})
     cfg.protect = {"containers": list(protect.get("containers", [])),
                    "ports": [int(p) for p in protect.get("ports", [])]}

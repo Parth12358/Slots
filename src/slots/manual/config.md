@@ -57,6 +57,15 @@ When the dashboard's Needs you panel flags something.
 | `idle_min` | 30 | a held slot whose lane has had no processes (and no activity) for this many minutes |
 | `wait_min` | 60 | someone waiting this many minutes |
 
+## [ports]
+
+Port leases (`slots port`).
+
+| Key | Default | Meaning |
+|---|---|---|
+| `range` | `[20000, 29999]` | the ports handed out |
+| `env` | `"{SERVICE}_PORT"` | the variable name in `--env` output; `{SERVICE}` is the service in capitals, `{service}` as given |
+
 ## [protect]
 
 Shared things nothing in slots ever stops. Docker's own processes and Claude Code sessions are
@@ -65,7 +74,7 @@ always spared.
 | Key | Default | Meaning |
 |---|---|---|
 | `containers` | `[]` | container names (shown, never touched) |
-| `ports` | `[]` | processes listening on these ports are never sent a signal |
+| `ports` | `[]` | processes listening on these ports are never sent a signal, and these ports are never leased |
 
 ## [compat]
 

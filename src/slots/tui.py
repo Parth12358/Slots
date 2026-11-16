@@ -164,6 +164,8 @@ def build_panels(model: dict, inner: int, G: dict) -> dict:
                                                          + " ", "dim")]
             if ln["ports"]:
                 segs.append(("t", " ".join(f":{p}" for p in ln["ports"][:3]), "@cyan"))
+        elif ln.get("leased"):
+            segs.append(("t", "ports " + " ".join(f":{p['port']}" for p in ln["leased"][:3]) + "  ", "dim"))
         else:
             segs.append(("t", "idle? no processes" if stale else "no processes", "stale" if stale else "dim"))
         if ln["waiting"]:
@@ -206,8 +208,16 @@ def build_panels(model: dict, inner: int, G: dict) -> dict:
              for e in reversed(model["events"][-12:])]
     P["activity"] = dict(title="activity", hint="", accent="purple", lines=lines)
 
+    leased = {pl["port"]: pl for pl in model.get("port_leases", [])}
+    up = {p["port"] for p in m.get("ports", [])}
     lines = [([("t", "  ", "norm"), ("t", f":{p['port']:<6}", "@cyan"), ("t", f"{p['cmd']:<11}", "norm"),
-               ("t", f"pid {p['pid']}", "dim")], None) for p in model["ports"]]
+               ("t", f"pid {p['pid']}", "dim"),
+               ("t", f"  {leased[p['port']]['lane']} {leased[p['port']]['service']}" if p["port"] in leased else "", "owner")],
+              None) for p in model["ports"]]
+    for port, pl in sorted(leased.items()):
+        if port not in up:
+            lines.append(([("t", "  ", "norm"), ("t", f":{port:<6}", "dim"), ("t", f"{pl['lane']} {pl['service']}", "dim"),
+                           ("t", "  leased, not up", "dim")], None))
     for c in model["containers"] or []:
         lines.append(([("t", "  ", "norm"), ("t", f"{c[0][:18]:<19}", "owner"), ("t", "  ".join(c[1:3]), "dim")], None))
     if model["containers"] is None:

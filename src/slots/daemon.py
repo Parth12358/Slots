@@ -382,6 +382,33 @@ class Daemon:
             self.persist()
             return {"ev": "session-ended", "leases": [self.lrow(l) for l in released]}
 
+        if op == "port":
+            from slots import ports
+            lane, service = msg.get("lane"), msg.get("service")
+            if not lane:
+                return {"ev": "error", "message": "a port belongs to a lane: pass one"}
+            if msg.get("release"):
+                gone = b.port_release(lane, service)
+                self.persist()
+                return {"ev": "port-released", "ports": gone}
+            if service is None:
+                return {"ev": "ports", "ports": [p for p in b.ports.values() if p["lane"] == lane]}
+            if not ports.SERVICE_RE.fullmatch(service):
+                return {"ev": "error", "message": f"bad service name {service!r} (letters, digits, . _ -)"}
+            low, high = self.cfg.ports["range"]
+            protected = set(self.cfg.protect.get("ports", []))
+            want = msg.get("want")
+            if want is not None and want in protected:
+                return {"ev": "refused", "message": f"port {want} is protected ([protect] ports)"}
+            lease, why = b.port_lease(lane, service, want=want,
+                                      candidates=ports.candidates(lane, service, low, high, protected))
+            if lease is None:
+                return {"ev": "refused", "message": why}
+            busy = want is not None and why == "new" and ports.in_use(want)
+            self.persist()
+            return {"ev": "port", "port": lease, "why": why,
+                    "env": ports.env_name(self.cfg.ports["env"], service), "in_use": busy}
+
         if op == "touch":
             n = b.touch(self.owner(msg.get("owner")))
             return {"ev": "touched", "leases": n}

@@ -153,6 +153,8 @@ class Broker:
         self.leases: list[Lease] = []
         self.waiters: list[Waiter] = []
         self.sessions: dict[str, Session] = {}
+        self.ports: dict[str, dict] = {}     # "lane/service" -> {lane, service, port, since}
+        self.flags: dict[str, dict] = {}     # watcher name -> {state, text, since, updated, ...}
         self.seq = 0
         self.events: deque[dict] = deque(maxlen=500)
         self.new_events: list[dict] = []
@@ -483,6 +485,55 @@ class Broker:
         s = self.sessions.get(sid) if sid else None
         return (s.pid, s.pid_start) if s else (None, None)
 
+    # ---- port leases ---------------------------------------------------------------------------
+
+    def port_holder(self, port: int) -> dict | None:
+        return next((p for p in self.ports.values() if p["port"] == port), None)
+
+    def port_lease(self, lane: str, service: str, *, candidates, want: int | None = None) -> tuple[dict | None, str]:
+        """The lane's port for `service`: the one it has, `want` if nobody else holds it, or the first
+        usable of `candidates` (an iterable of ports, already filtered for being free). Returns
+        (lease or None, why)."""
+        key = f"{lane}/{service}"
+        mine = self.ports.get(key)
+        if want is not None:
+            other = self.port_holder(want)
+            if other and other is not mine:
+                return None, f"port {want} is held by lane {other['lane']} ({other['service']})"
+            if mine and mine["port"] == want:
+                return mine, "already held"
+        elif mine:
+            return mine, "already held"
+        port = want
+        if port is None:
+            port = next((c for c in candidates if not self.port_holder(c)), None)
+            if port is None:
+                return None, "no free port left in the range"
+        lease = {"lane": lane, "service": service, "port": port, "since": self.clock()}
+        self.ports[key] = lease
+        self.emit("port", lane=lane, label=lane, service=service, port=port)
+        return lease, "new"
+
+    def port_release(self, lane: str, service: str | None = None) -> list[dict]:
+        gone = [k for k, p in self.ports.items() if p["lane"] == lane and (service is None or p["service"] == service)]
+        out = [self.ports.pop(k) for k in gone]
+        for p in out:
+            self.emit("port-released", lane=lane, label=lane, service=p["service"], port=p["port"])
+        return out
+
+    # ---- watcher flags -------------------------------------------------------------------------
+
+    def set_flag(self, name: str, state: str, text: str, **extra) -> bool:
+        """Record a watcher's result. Returns True when its state changed."""
+        now = self.clock()
+        old = self.flags.get(name)
+        changed = not old or old["state"] != state
+        self.flags[name] = {"name": name, "state": state, "text": text, "updated": now,
+                            "since": now if changed else old["since"], **extra}
+        if changed:
+            self.emit("flag", label=name, state=state, text=text)
+        return changed
+
     # ---- views ---------------------------------------------------------------------------------
 
     def position(self, w: Waiter) -> int:
@@ -512,13 +563,16 @@ class Broker:
             })
         sessions = [{**s.row(), "leases": [l.id for l in self.leases if l.owner.session == s.id]}
                     for s in sorted(self.sessions.values(), key=lambda s: s.started)]
-        return {"now": now, "resources": res, "sessions": sessions, "events": list(self.events)[-50:]}
+        return {"now": now, "resources": res, "sessions": sessions,
+                "ports": sorted(self.ports.values(), key=lambda p: p["port"]),
+                "flags": sorted(self.flags.values(), key=lambda f: f["name"]), "events": list(self.events)[-50:]}
 
     # ---- persistence ---------------------------------------------------------------------------
 
     def rows(self) -> dict:
         return {"seq": self.seq, "leases": [l.row() for l in self.leases], "waiters": [w.row() for w in self.waiters],
-                "sessions": [s.row() for s in self.sessions.values()]}
+                "sessions": [s.row() for s in self.sessions.values()],
+                "ports": list(self.ports.values()), "flags": list(self.flags.values())}
 
     def load_rows(self, rows: dict, resolve: Callable[[str], Resource | None]):
         self.seq = rows.get("seq", 0)
@@ -534,6 +588,10 @@ class Broker:
                     if r:
                         self.ensure(r)
                 self.waiters.append(Waiter(**{**d, "owner": Owner.of(d["owner"])}))
+        for p in rows.get("ports", []):
+            self.ports[f"{p['lane']}/{p['service']}"] = p
+        for f in rows.get("flags", []):
+            self.flags[f["name"]] = f
         for d in rows.get("sessions", []):
             self.sessions[d["id"]] = Session(**{k: d[k] for k in Session.__dataclass_fields__ if k in d})
         self.orphan_all()

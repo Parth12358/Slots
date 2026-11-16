@@ -39,6 +39,11 @@ long_held_h = 12      # a lease held this long
 idle_min = 30         # a slot held with no lane processes (and no activity) this long
 wait_min = 60         # someone waiting this long
 
+# Ports leased to lanes: `slots port <lane> <service>`.
+[ports]
+range = [20000, 29999]
+env = "{SERVICE}_PORT"     # how --env names them: UI_PORT=...
+
 # Shared things the dashboard never stops (K skips their processes).
 [protect]
 containers = []

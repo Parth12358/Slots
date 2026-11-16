@@ -487,6 +487,40 @@ def cmd_man(ctx: Ctx) -> int:
     return 0
 
 
+def cmd_port(ctx: Ctx) -> int:
+    from slots import ports
+    a = ctx.args
+    msg = {"op": "port", "lane": a.lane_name, "service": a.service, "want": a.want, "release": a.release}
+    if a.want is not None and a.service is None:
+        err("slots: --want needs a service")
+        return EXIT_USAGE
+    reply = ctx_call(ctx, msg)
+    if reply is None:
+        return EXIT_UNAVAILABLE
+    ev = reply["ev"]
+    if ev in ("error", "refused"):
+        err(f"slots: {'refused: ' if ev == 'refused' else ''}{reply['message']}")
+        return EXIT_BUSY if ev == "refused" else EXIT_USAGE
+    if ev == "port-released":
+        names = ", ".join(f"{p['service']} :{p['port']}" for p in reply["ports"])
+        print(f"{a.lane_name} released {names}" if names else f"{a.lane_name} holds no ports")
+        return 0
+    if ev == "ports":
+        if not reply["ports"]:
+            if not a.env:
+                print(f"{a.lane_name} holds no ports")
+            return 0
+        for p in sorted(reply["ports"], key=lambda p: p["service"]):
+            print(f"{ports.env_name(ctx.cfg.ports['env'], p['service'])}={p['port']}" if a.env
+                  else f"{p['service']:<16} {p['port']}")
+        return 0
+    port = reply["port"]["port"]
+    print(f"{reply['env']}={port}" if a.env else port)
+    if reply.get("in_use"):
+        err(f"slots: note: something is already listening on {port}")
+    return 0
+
+
 def cmd_hook(ctx: Ctx) -> int:
     from slots import claude
     return claude.run_hook(ctx, ctx.args.event, sys.stdin.read())
@@ -617,6 +651,13 @@ def parser() -> argparse.ArgumentParser:
     m.add_argument("--locks", help="the old lock folder (default OLD_ROOT/ta-e2e/.locks)")
     m.add_argument("--apply", action="store_true")
 
+    pt = sub.add_parser("port", help="a stable port for a lane's service, never another lane's")
+    pt.add_argument("lane_name", metavar="lane")
+    pt.add_argument("service", nargs="?", help="e.g. ui, api; without it: the lane's ports")
+    pt.add_argument("--want", type=int, help="this port, unless another lane holds it")
+    pt.add_argument("--env", action="store_true", help="print NAME=PORT lines (a .env fragment)")
+    pt.add_argument("--release", action="store_true", help="give the port (or all the lane's ports) back")
+
     hk = sub.add_parser("hook", help="run by Claude Code's hooks (reads the event's JSON on stdin)")
     hk.add_argument("event", choices=["session-start", "user-prompt", "pre-tool-use", "stop", "notification",
                                       "session-end"])
@@ -653,7 +694,7 @@ def parser() -> argparse.ArgumentParser:
 COMMANDS = {"dash": cmd_dash, "run": cmd_run, "acquire": cmd_acquire, "release": cmd_release, "status": cmd_status,
             "admin": cmd_admin, "daemon": cmd_daemon, "init": cmd_init, "shims": cmd_shims,
             "migrate": cmd_migrate, "help": cmd_help, "man": cmd_man,
-            "hook": cmd_hook, "claude": cmd_claude}
+            "hook": cmd_hook, "claude": cmd_claude, "port": cmd_port}
 
 
 def main(argv: list[str] | None = None) -> int:

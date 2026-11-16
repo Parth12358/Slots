@@ -63,3 +63,12 @@ never needs to be cleaned up by hand. `slots daemon status|stop`.
 A lane's processes are found exactly where possible (the process trees of its leases' holders)
 and otherwise by folder: a process whose command line or working folder is inside the lane and
 whose command matches `lanes.processes`. The dashboard marks the second kind with `~`.
+
+## Ports
+
+`slots port <lane> <service>` leases a port to a lane: stable (a hash of the lane and service
+picks the first choice, so it's the same every time), never one another lane holds, never a
+protected one, never one in use. Lanes read their ports from it, or from `slots port <lane> --env`,
+instead of picking them by hand. The dashboard shows each lane's ports and warns when another
+lane is listening on a port that isn't its own.
+

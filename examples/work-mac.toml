@@ -1,0 +1,23 @@
+# The work machine (PROMPT.md section 5). Copy to ~/.config/slots/config.toml there.
+
+[lanes]
+root = "~/Documents/dev/interface"
+pattern = '^(?P<ticket>\d+)$'          # lane folders are bare ticket numbers, e.g. 10526
+
+[pool.agent]
+size = 7
+hold = "session"                       # held for a whole session; no inactivity timeout
+
+[pool.test]
+size = 5
+hold = "command"
+
+[lock.e2e]                             # one lane signs in as the shared test employee at a time
+[lock.next-mock-core]                  # next's shared mock core
+
+[family.next-employee]                 # one next run per test employee
+name = "next-employee-{key}"           # same name as lib/env.ts nextEmployeeLock
+key = "sha1-12"
+
+[cluster]
+enabled = false

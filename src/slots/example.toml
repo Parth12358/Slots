@@ -1,0 +1,38 @@
+# slots config. Found via --config, $SLOTS_CONFIG, ./.slots.toml (searched upward),
+# then ~/.config/slots/config.toml. The daemon reloads it when it changes.
+
+[lanes]
+# Each folder directly under root is a lane (one ticket's work).
+root = "~/dev/lanes"
+# The ticket id from the folder name: the "ticket" group, or the whole match.
+pattern = '^(?P<ticket>[A-Za-z0-9_-]+)$'
+
+# A pool is a counting semaphore: at most `size` holders at once, served first come, first served.
+[pool.agent]
+size = 4
+# "session": held across a whole Claude Code session (slots acquire / release).
+# "command": held for one command (slots run). This only guides the hooks and the skill.
+hold = "session"
+# ttl = "8h"       # optional: end a lease that has had no activity for this long. Off by default.
+
+[pool.test]
+size = 3
+hold = "command"
+
+# A lock is a pool of one.
+[lock.e2e]
+
+# A family makes locks on demand from a key: `slots run employee:alice@example.com -- ...`
+# takes the lock "employee-<first 12 hex of sha1 of the trimmed, lowercased key>".
+[family.employee]
+name = "employee-{key}"
+key = "sha1-12"           # or "raw" to use the key itself
+
+# Overrides for one machine, chosen when its hostname matches `match` (or by $SLOTS_DEVICE).
+# [device.desktop]
+# match = "my-desktop*"
+# pool.agent.size = 10
+
+# Sharing chosen resources across machines. Not built yet; keep this off.
+[cluster]
+enabled = false

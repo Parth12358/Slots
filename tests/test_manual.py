@@ -109,6 +109,12 @@ class ManualTest(unittest.TestCase):
             for t in ["index", *manual.TOPICS]:
                 text = (Path(d) / "wiki" / f"{t}.md").read_text()
                 self.assertTrue(text.startswith("---\ntitle: "), t)
+                self.assertIn("layout: wiki", text)
+            self.assertIn("next: quickstart", (Path(d) / "wiki" / "index.md").read_text())
+            self.assertIn("slug: setup", (Path(d) / "_data" / "topics.yml").read_text())
+            prompt = (Path(d) / "_includes" / "setup_prompt.txt").read_text()
+            self.assertTrue(prompt.startswith('Set up "slots" on this machine.'))
+            self.assertIn("slots claude install --dry-run", prompt)
             all_txt = (Path(d) / "wiki" / "all.txt").read_text()
             for t in manual.TOPICS:
                 self.assertIn(manual.page(t).splitlines()[0], all_txt)

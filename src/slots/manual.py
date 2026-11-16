@@ -15,7 +15,7 @@ from pathlib import Path
 from slots import __version__
 
 # Reading order, for the man page and all.txt.
-TOPICS = ["quickstart", "agents", "concepts", "claude", "cli", "config", "dashboard", "compat", "troubleshooting"]
+TOPICS = ["quickstart", "setup", "agents", "concepts", "claude", "cli", "config", "dashboard", "compat", "troubleshooting"]
 SITE = "https://parth12358.github.io/Slots"
 
 
@@ -164,20 +164,43 @@ def install_man(base: Path | None = None) -> Path:
 
 # ---- the wiki ------------------------------------------------------------------------------------
 
+def setup_prompt() -> str:
+    """The copy-and-paste prompt from the setup page."""
+    return re.search(r"```text\n(.*?)\n```", page("setup"), re.S).group(1)
+
+
+def title(t: str) -> str:
+    return re.match(r"# (.+)", page(t)).group(1)
+
+
 def site(out: Path):
-    """Write the wiki pages for GitHub Pages into `out`."""
+    """Write the wiki for GitHub Pages into `out` (docs/wiki), plus the site's data next to it:
+    _data/topics.yml (the sidebar), _includes/setup_prompt.txt (the home page's prompt), llms.txt."""
     out.mkdir(parents=True, exist_ok=True)
-    nav = " · ".join(f"[{t}]({t}.md)" for t in ["index", *TOPICS])
-    for t in ["index", *TOPICS]:
-        body = page(t)
-        title = re.match(r"# (.+)", body).group(1)
-        (out / f"{t}.md").write_text(f"---\ntitle: \"{title}\"\n---\n\n{nav}\n\n{body}\n\n---\n\n"
-                                     f"Also in the terminal: `slots help {t if t != 'index' else ''}`".rstrip() + "\n")
-    all_text = "\n\n".join(page(t).rstrip() for t in ["index", *TOPICS])
+    docs = out.parent
+    blurbs = dict(topics())
+    order = ["index", *TOPICS]
+    for i, t in enumerate(order):
+        prev_t = order[i - 1] if i > 0 else None
+        next_t = order[i + 1] if i + 1 < len(order) else None
+        meta = [f'title: "{title(t)}"', "layout: wiki", f"slug: {t}"]
+        if prev_t:
+            meta += [f"prev: {prev_t}", f'prev_title: "{title(prev_t)}"']
+        if next_t:
+            meta += [f"next: {next_t}", f'next_title: "{title(next_t)}"']
+        (out / f"{t}.md").write_text("---\n" + "\n".join(meta) + "\n---\n\n" + page(t).rstrip() + "\n")
+    (docs / "_data").mkdir(exist_ok=True)
+    (docs / "_data" / "topics.yml").write_text("".join(
+        f'- slug: {t}\n  title: "{title(t)}"\n  blurb: "{blurbs.get(t, "").replace(chr(34), chr(39))}"\n'
+        for t in order))
+    (docs / "_includes").mkdir(exist_ok=True)
+    (docs / "_includes" / "setup_prompt.txt").write_text(setup_prompt() + "\n")
+    all_text = "\n\n".join(page(t).rstrip() for t in order)
     (out / "all.txt").write_text(f"# slots {__version__}: the whole manual\n# {SITE}/wiki/\n\n{all_text}\n")
-    (out.parent / "llms.txt").write_text(
+    (docs / "llms.txt").write_text(
         f"# slots\n\n> Share one machine's heavy work between many Claude Code sessions: pools, locks, leases, a FIFO queue.\n\n"
-        f"Agents: read {SITE}/wiki/agents.html first; the whole manual as plain text is {SITE}/wiki/all.txt.\n\n"
+        f"Agents: read {SITE}/wiki/agents.html first; the whole manual as plain text is {SITE}/wiki/all.txt. "
+        f"To set slots up on a machine, follow {SITE}/wiki/setup.html.\n\n"
         "## Pages\n\n" + "\n".join(f"- [{t}]({SITE}/wiki/{t}.html): {d}" for t, d in topics()) + "\n")
 
 

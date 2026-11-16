@@ -1,3 +1,17 @@
 title: slots
-description: A local coordinator for Claude Code sessions and the heavy work they run
-theme: jekyll-theme-minimal
+description: Run many Claude Code sessions on one machine without it falling over.
+url: https://parth12358.github.io
+baseurl: /Slots
+markdown: kramdown
+kramdown:
+  input: GFM
+  syntax_highlighter: rouge
+plugins:
+  - jekyll-relative-links
+  - jekyll-optional-front-matter
+defaults:
+  - scope: { path: "" }
+    values: { layout: page }
+  - scope: { path: "wiki" }
+    values: { layout: wiki }
+exclude: [design-notes]

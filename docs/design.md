@@ -1,3 +1,7 @@
+---
+title: Design
+---
+
 # slots — design
 
 Status: draft for review (step 1 of `PROMPT.md` §4). No code is written until this is approved.

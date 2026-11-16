@@ -12,6 +12,7 @@ Read it in the terminal with `slots help <topic>`, as a man page with `man slots
 | Topic | What's in it |
 |---|---|
 | [quickstart](quickstart.md) | Install, first config, the five commands you need |
+| [setup](setup.md) | A prompt to paste into Claude Code that sets slots up on a machine |
 | [agents](agents.md) | The rules for agents (Claude Code sessions): read this before running anything heavy |
 | [concepts](concepts.md) | Pools, locks, families, leases, lanes, the queue, crash safety, identity |
 | [claude](claude.md) | Claude Code hooks, the generated skill, sessions in the dashboard |

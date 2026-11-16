@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% if page.title and page.title != site.title %}slots: {{ page.title }}{% else %}slots{% endif %}</title>
+  <meta name="description" content="{{ page.description | default: site.description }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;600&family=Atkinson+Hyperlegible+Next:ital,wght@0,400;0,600;0,800;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ '/assets/site.css' | relative_url }}">
+  <link rel="alternate" type="text/plain" title="The whole manual as text" href="{{ '/wiki/all.txt' | relative_url }}">
+</head>
+<body class="{{ page.layout }}">
+  <a class="skip" href="#main">Skip to the content</a>
+  <header class="top">
+    <a class="mark" href="{{ '/' | relative_url }}" aria-label="slots home"><span class="mark-cells" aria-hidden="true"><i></i><i></i><i></i></span>slots</a>
+    <nav aria-label="Site">
+      <a href="{{ '/wiki/' | relative_url }}"{% if page.layout == 'wiki' %} aria-current="page"{% endif %}>Manual</a>
+      <a href="{{ '/wiki/setup.html' | relative_url }}"{% if page.slug == 'setup' %} aria-current="page"{% endif %}>Set up</a>
+      <a href="{{ '/design.html' | relative_url }}"{% if page.url == '/design.html' %} aria-current="page"{% endif %}>Design</a>
+      <a href="https://github.com/Parth12358/Slots">Source</a>
+    </nav>
+  </header>
+  {{ content }}
+  <footer class="foot">
+    <p>slots is free software under the GPL-2.0. The manual is also in your terminal: <code>slots help</code>, and <code>man slots</code> after <code>slots man --install</code>.</p>
+  </footer>
+  <script src="{{ '/assets/site.js' | relative_url }}" defer></script>
+</body>
+</html>

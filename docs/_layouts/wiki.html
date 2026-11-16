@@ -1,0 +1,22 @@
+---
+layout: base
+---
+<div class="wiki">
+  <nav class="toc" aria-label="Manual">
+    <p class="toc-head">Manual</p>
+    <ol>
+      {% for t in site.data.topics %}
+      <li><a href="{{ '/wiki/' | append: t.slug | append: '.html' | relative_url }}"{% if t.slug == page.slug %} aria-current="page"{% endif %}>{% if t.slug == 'index' %}Overview{% else %}{{ t.title }}{% endif %}</a></li>
+      {% endfor %}
+    </ol>
+    <p class="toc-text"><a href="{{ '/wiki/all.txt' | relative_url }}">All of it as plain text</a>, for agents.</p>
+  </nav>
+  <main id="main" class="prose">
+    {{ content }}
+    <p class="offline">Offline: <code>slots help {% if page.slug != 'index' %}{{ page.slug }}{% endif %}</code></p>
+    <nav class="pager" aria-label="Previous and next">
+      {% if page.prev %}<a class="prev" href="{{ page.prev | append: '.html' }}"><span>Previous</span>{% if page.prev == 'index' %}Overview{% else %}{{ page.prev_title }}{% endif %}</a>{% endif %}
+      {% if page.next %}<a class="next" href="{{ page.next | append: '.html' }}"><span>Next</span>{{ page.next_title }}</a>{% endif %}
+    </nav>
+  </main>
+</div>

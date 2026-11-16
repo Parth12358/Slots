@@ -15,7 +15,7 @@ from pathlib import Path
 from slots import __version__
 
 # Reading order, for the man page and all.txt.
-TOPICS = ["quickstart", "setup", "agents", "concepts", "claude", "cli", "config", "dashboard", "compat", "troubleshooting"]
+TOPICS = ["quickstart", "setup", "agents", "concepts", "claude", "cli", "config", "dashboard", "watchers", "compat", "troubleshooting"]
 SITE = "https://parth12358.github.io/Slots"
 
 

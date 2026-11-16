@@ -38,5 +38,31 @@ e2e_lock = "e2e"
 employee_family = "next-employee"
 undeclared_locks = true                # run_exclusive may name locks that aren't declared above
 
+# Credential freshness (PROMPT.md section 5). Set VAULT_ADDR here or in your environment.
+[watcher.vault]
+kind = "credential"
+command = "vault token lookup -format=json"
+expiry = "data.expire_time"
+warn_before = "30m"
+every = "60s"
+# env = { VAULT_ADDR = "https://..." }
+
+[watcher.aws]
+kind = "credential"
+command = "aws sts get-caller-identity --profile pe"
+every = "5m"
+
+# The old signin-watcher.sh as a lane-setup watcher: fill in your harness's paths and command.
+# [watcher.signin]
+# kind = "lane-setup"
+# port = "ui"                                  # each lane's `slots port <ticket> ui`
+# artifact = "~/Documents/dev/interface/<harness>/.auth/<lane file>.json"
+# command = "<the harness's sign-in setup>"
+# cwd = "~/Documents/dev/interface/<harness>"
+# success = " passed"
+# locks = ["e2e"]
+# settle = "20s"
+# every = "30s"
+
 [cluster]
 enabled = false

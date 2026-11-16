@@ -204,6 +204,14 @@ def build_panels(model: dict, inner: int, G: dict) -> dict:
     busy = sum(r["in_use"] for r in model["resources"])
     P["resources"] = dict(title=f"resources {G['dot']} {busy} held", hint="r release", accent="blue", lines=lines)
 
+    lines = []
+    for f in model.get("flags", []):
+        st = {"ok": "alive", "warn": "stale", "bad": "hot"}.get(f["state"], "dim")
+        lines.append(([mark("alive" if f["state"] == "ok" else "stale"), ("t", f"{f['state']:<4} ", st),
+                       ("t", f["text"][:inner - 12], "norm" if f["state"] == "ok" else st)], None))
+    if lines:
+        P["watchers"] = dict(title=f"watchers {len(lines)}", hint="", accent="gold", lines=lines)
+
     lines = [([("t", f"{fmt.clock(e['ts'])} ", "dim"), ("t", dashboard.event_text(e)[:inner - 6], "norm")], None)
              for e in reversed(model["events"][-12:])]
     P["activity"] = dict(title="activity", hint="", accent="purple", lines=lines)
@@ -606,8 +614,9 @@ def live(stdscr, ctx, glyphs: str, bg: str):
         xs = [0, widths[0]] if wide else [0]
         panels = build_panels(data, min(widths) - 4, G)
         first = ["needs"] if "needs" in panels else []
-        stacks = [first + ["sessions", "lanes", "resources"], ["activity", "ports"]] if wide else \
-            [first + ["sessions", "lanes", "resources", "activity", "ports"]]
+        side = (["watchers"] if "watchers" in panels else []) + ["activity", "ports"]
+        stacks = [first + ["sessions", "lanes", "resources"], side] if wide else \
+            [first + ["sessions", "lanes", "resources"] + side]
         cols = []
         for stack in stacks:
             vl = []

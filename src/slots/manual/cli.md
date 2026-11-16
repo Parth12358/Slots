@@ -117,6 +117,16 @@ slots daemon status | stop | run
 The background broker. It starts by itself; `stop` ends it (the next command starts a new one,
 and running commands keep their slots). `run` runs it in the foreground.
 
+## slots watchers
+
+```
+slots watchers [--json]
+slots watchers --run NAME
+```
+
+Lists the configured watchers, when each runs next, and the flags they set (ok, warn, bad).
+`--run NAME` runs one now. See [watchers](watchers.md).
+
 ## slots claude
 
 ```

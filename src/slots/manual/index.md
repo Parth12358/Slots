@@ -19,10 +19,11 @@ Read it in the terminal with `slots help <topic>`, as a man page with `man slots
 | [cli](cli.md) | Every command, option and exit code |
 | [config](config.md) | Every config setting, with defaults |
 | [dashboard](dashboard.md) | The live view: panels, Needs you, keys |
+| [watchers](watchers.md) | Credential checks, lane setup when a stack comes up, your own checks |
 | [compat](compat.md) | agent-slot.sh, slot.sh, lib-slot.sh, migration, the Node client |
 | [troubleshooting](troubleshooting.md) | "I see X, what do I do?" |
 
 Built so far: the broker and CLI, the compatibility shims and migration, the dashboard, and the
-Claude Code hooks and skill, and port leases. Coming next: watchers (credential freshness, lane
-setup), and optional sharing across machines. The design is in
+Claude Code hooks and skill, port leases, and watchers. Coming next: starting the daemon at login,
+and optional sharing across machines. The design is in
 [design](https://parth12358.github.io/Slots/design.html).

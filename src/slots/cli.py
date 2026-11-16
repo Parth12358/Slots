@@ -521,6 +521,38 @@ def cmd_port(ctx: Ctx) -> int:
     return 0
 
 
+def cmd_watchers(ctx: Ctx) -> int:
+    a = ctx.args
+    if a.run:
+        reply = ctx_call(ctx, {"op": "watch-run", "name": a.run})
+        if reply is None:
+            return EXIT_UNAVAILABLE
+        if reply["ev"] == "error":
+            err(f"slots: {reply['message']}")
+            return EXIT_USAGE
+        print(f"started {a.run}; its result shows in `slots watchers` and the dashboard")
+        return 0
+    reply = ctx_call(ctx, {"op": "watchers"})
+    if reply is None:
+        return EXIT_UNAVAILABLE
+    if a.json:
+        json.dump(reply, sys.stdout, indent=2)
+        print()
+        return 0
+    if not reply["watchers"]:
+        print("no watchers configured (see slots help config, [watcher.NAME])")
+    now = time.time()
+    for w in reply["watchers"]:
+        when = "running now" if w["running"] else (f"next in {fmt.dur(w['next_in'])}" if w["next_in"] is not None
+                                                   else "on " + ", ".join(w["on"]))
+        last = f", last ran {fmt.dur(now - w['last_run'])} ago" if w["last_run"] else ""
+        print(f"{w['name']}  ({w['kind']}; {when}{last})")
+        for f in reply["flags"]:
+            if f["name"] == w["name"] or f["name"].startswith(w["name"] + ":"):
+                print(f"  {f['state']:<4}  {f['text']}  (since {fmt.clock(f['since'])})")
+    return 0
+
+
 def cmd_hook(ctx: Ctx) -> int:
     from slots import claude
     return claude.run_hook(ctx, ctx.args.event, sys.stdin.read())
@@ -658,6 +690,10 @@ def parser() -> argparse.ArgumentParser:
     pt.add_argument("--env", action="store_true", help="print NAME=PORT lines (a .env fragment)")
     pt.add_argument("--release", action="store_true", help="give the port (or all the lane's ports) back")
 
+    wt = sub.add_parser("watchers", help="the configured watchers and what they found")
+    wt.add_argument("--run", metavar="NAME", help="run this watcher now")
+    wt.add_argument("--json", action="store_true")
+
     hk = sub.add_parser("hook", help="run by Claude Code's hooks (reads the event's JSON on stdin)")
     hk.add_argument("event", choices=["session-start", "user-prompt", "pre-tool-use", "stop", "notification",
                                       "session-end"])
@@ -694,7 +730,8 @@ def parser() -> argparse.ArgumentParser:
 COMMANDS = {"dash": cmd_dash, "run": cmd_run, "acquire": cmd_acquire, "release": cmd_release, "status": cmd_status,
             "admin": cmd_admin, "daemon": cmd_daemon, "init": cmd_init, "shims": cmd_shims,
             "migrate": cmd_migrate, "help": cmd_help, "man": cmd_man,
-            "hook": cmd_hook, "claude": cmd_claude, "port": cmd_port}
+            "hook": cmd_hook, "claude": cmd_claude, "port": cmd_port,
+            "watchers": cmd_watchers}
 
 
 def main(argv: list[str] | None = None) -> int:

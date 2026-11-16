@@ -83,6 +83,10 @@ class Daemon:
                          waiters=len(self.broker.waiters))
         self.out(self.broker.sweep())
         self.started = time.time()
+        from slots import shims, watchers
+        self.slots_cmd = shims.slots_command(self.config_path, use_path=False)
+        self.watch = watchers.Runner(self)
+        self.watch.load(self.cfg.watchers)
 
         self.stopping = asyncio.Event()
         sock = str(self.paths.socket)
@@ -101,6 +105,7 @@ class Daemon:
         ticker = asyncio.create_task(self.ticker())
         await self.stopping.wait()
         ticker.cancel()
+        self.watch.stop()
         server.close()
         self.persist()
         os.unlink(sock)
@@ -126,6 +131,7 @@ class Daemon:
             await asyncio.sleep(TICK)
             n += 1
             out = self.broker.tick()
+            self.watch.tick()
             if n % SWEEP_EVERY == 0:
                 out.merge(self.broker.sweep())
                 out.merge(self.reload_if_changed())
@@ -142,6 +148,7 @@ class Daemon:
             log(f"config reload failed, keeping the old one: {e}")
             return Outcome()
         self.cfg = cfg
+        self.watch.load(cfg.watchers)
         log("config reloaded")
         return self.broker.update_resources(cfg.resources)
 
@@ -150,6 +157,8 @@ class Daemon:
     def out(self, out: Outcome):
         """Tell clients what changed, update queue positions, and persist."""
         for g in out.grants:
+            for l in g.leases:
+                self.watch.trigger(f"lease:{l.resource}")
             if g.waiter.conn:
                 g.waiter.conn.send({"ev": "granted", "leases": [self.lrow(l) for l in g.leases]})
         for w in out.timed_out:
@@ -254,6 +263,9 @@ class Daemon:
                 w.position = b.position(w)
                 conn.send(self.queued(w))
             self.out(out)
+            if status == "granted":
+                for l in leases:
+                    self.watch.trigger(f"lease:{l.resource}")
             if status in ("granted", "already"):
                 self.persist()
                 return {"ev": status, "leases": [self.lrow(l) for l in leases]}
@@ -408,6 +420,15 @@ class Daemon:
             self.persist()
             return {"ev": "port", "port": lease, "why": why,
                     "env": ports.env_name(self.cfg.ports["env"], service), "in_use": busy}
+
+        if op == "watchers":
+            return {"ev": "watchers", "watchers": self.watch.views(),
+                    "flags": sorted(b.flags.values(), key=lambda f: f["name"])}
+
+        if op == "watch-run":
+            if not self.watch.run_now(msg.get("name", "")):
+                return {"ev": "error", "message": f"no watcher {msg.get('name')!r} (see slots watchers)"}
+            return {"ev": "started", "name": msg["name"]}
 
         if op == "touch":
             n = b.touch(self.owner(msg.get("owner")))

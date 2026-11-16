@@ -130,6 +130,10 @@ def build(state: dict, mach: dict, cfg: config.Config, *, now: float | None = No
         elif age >= warn["long_held_h"] * 3600:
             needs.append({"level": "warn", "text": f"long-held: {name} has held {what} for {fmt.dur(age)}",
                           "fix": act, "fix_label": "release"})
+    for f in state.get("flags", []):
+        if f["state"] in ("bad", "warn"):
+            needs.append({"level": "warn" if f["state"] == "warn" else "hot" if f["name"].count(":") == 0 else "warn",
+                          "text": f["text"], "fix": None})
     owner_of = {p: l["name"] for l in lanes.values() for p in l["pids"]}
     listening = {p["port"]: p for p in mach.get("ports", [])}
     for pl in port_leases:
@@ -263,6 +267,10 @@ def text(model: dict, *, actions: bool = False) -> str:
     out.append(f"ACTIVITY  last {min(8, len(model['events']))}")
     for e in model["events"][-8:]:
         line(f"{fmt.clock(e['ts'])}  {event_text(e)}")
+    if model["flags"]:
+        out.append(f"WATCHERS  {len(model['flags'])} flags")
+        for f in model["flags"]:
+            line(f"{f['state']:<4}  {f['text']}  (since {fmt.clock(f['since'])})")
     out.append(f"PORT LEASES  {len(model['port_leases'])}")
     listening = {p["port"] for p in model["ports"]} | {p["port"] for p in model["machine"].get("ports", [])}
     for pl in model["port_leases"]:

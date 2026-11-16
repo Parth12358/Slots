@@ -69,6 +69,7 @@ class Config:
     compat: dict = field(default_factory=dict)
     warn: dict = field(default_factory=dict)
     ports: dict = field(default_factory=dict)
+    watchers: dict = field(default_factory=dict)
     protect: dict = field(default_factory=dict)
     process_pattern: re.Pattern = field(default_factory=lambda: re.compile(DEFAULT_PROCESS_PATTERN))
     raw: dict = field(default_factory=dict)
@@ -231,6 +232,9 @@ def from_dict(raw: dict, path: Path | None = None) -> Config:
         raise ConfigError("ports.env must contain {SERVICE} or {service}")
     cfg.ports = {"range": rng, "env": env}
 
+    for name, spec in merged.get("watcher", {}).items():
+        cfg.watchers[name] = _watcher(name, spec)
+
     protect = merged.get("protect", {})
     cfg.protect = {"containers": list(protect.get("containers", [])),
                    "ports": [int(p) for p in protect.get("ports", [])]}
@@ -251,3 +255,37 @@ def _hold(name: str, spec: dict) -> str:
     if hold not in ("command", "session"):
         raise ConfigError(f"{name}.hold must be \"command\" or \"session\"")
     return hold
+
+
+WATCHER_KINDS = {"credential": ["command"], "lane-setup": ["port", "artifact", "command"], "python": ["path"]}
+
+
+def _watcher(name: str, spec: dict) -> dict:
+    """[watcher.NAME]: check it now, so a bad table fails at load, not at 3 am."""
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", name):
+        raise ConfigError(f"bad watcher name {name!r}")
+    kind = spec.get("kind")
+    if kind not in WATCHER_KINDS:
+        raise ConfigError(f"watcher.{name}.kind must be one of: {', '.join(WATCHER_KINDS)}")
+    for key in WATCHER_KINDS[kind]:
+        if not spec.get(key):
+            raise ConfigError(f"watcher.{name} ({kind}) needs `{key}`")
+    on = spec.get("on", [])
+    on = [on] if isinstance(on, str) else list(on)
+    for event in on:
+        if not re.fullmatch(r"start|lease:[^\s]+|flag:[^\s]+", event):
+            raise ConfigError(f"watcher.{name}.on: {event!r} isn't start, lease:<resource> or flag:<watcher>")
+    every = parse_duration(spec.get("every", "60s" if not on else None))
+    if not every and not on:
+        raise ConfigError(f"watcher.{name} needs `every` or `on`")
+    env = spec.get("env", {})
+    if not isinstance(env, dict):
+        raise ConfigError(f"watcher.{name}.env must be a table")
+    locks = spec.get("locks", [])
+    if isinstance(locks, str):
+        locks = [locks]
+    return {**spec, "name": name, "kind": kind, "on": on, "every": every, "env": {k: str(v) for k, v in env.items()},
+            "locks": list(locks), "timeout": parse_duration(spec.get("timeout", "30s" if kind == "credential" else "15m")),
+            "settle": parse_duration(spec.get("settle", "20s")) or 0.0,
+            "warn_before": parse_duration(spec.get("warn_before", "30m")) or 0.0}
+

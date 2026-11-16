@@ -55,3 +55,25 @@ def alive(pid: int | None, started: str | None) -> bool:
         return True
     now = start_time(pid)
     return now is None or now == started
+
+
+def start_epoch(pid: int) -> float | None:
+    """When pid started, as a Unix time (for "is this file older than that process?")."""
+    if LINUX:
+        fields = _linux_stat(pid)
+        if not fields:
+            return None
+        try:
+            with open("/proc/stat") as f:
+                btime = next(int(l.split()[1]) for l in f if l.startswith("btime "))
+        except (OSError, StopIteration, ValueError):
+            return None
+        return btime + int(fields[19]) / os.sysconf("SC_CLK_TCK")
+    import time as _time
+    try:
+        out = subprocess.run(["ps", "-o", "lstart=", "-p", str(pid)], capture_output=True, text=True, timeout=3,
+                             env={**os.environ, "LC_ALL": "C"}).stdout.strip()
+        return _time.mktime(_time.strptime(out, "%a %b %d %H:%M:%S %Y")) if out else None
+    except (OSError, subprocess.TimeoutExpired, ValueError):
+        return None
+

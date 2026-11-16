@@ -103,6 +103,29 @@ How the Claude Code hooks gate Bash commands ([claude](claude.md)).
 | `lanes_only` | `true` | only gate commands in lane folders |
 | `notify` | `false` | a desktop notification when an idle session holds a slot |
 
+## [watcher.NAME]
+
+A job the daemon runs ([watchers](watchers.md)).
+
+| Key | Default | Meaning |
+|---|---|---|
+| `kind` | required | `"credential"`, `"lane-setup"` or `"python"` |
+| `every` | `"60s"` (unless `on` is set) | how often |
+| `on` | none | `"start"`, `"lease:<resource>"`, `"flag:<watcher>"`, or a list of them |
+| `command` | required for credential and lane-setup | run with `sh -c` |
+| `env` | `{}` | extra environment for the command |
+| `cwd` | your home | where the command runs |
+| `timeout` | `"30s"` credential, `"15m"` others | the command is stopped after this |
+| `expiry` | none | credential: a JSON path in the output giving when it expires |
+| `warn_before` | `"30m"` | credential: warn this long before it expires |
+| `port` | required for lane-setup | the service the lane leased (`slots port`), or a port number |
+| `artifact` | required for lane-setup | the file that should be newer than the stack |
+| `success` | none | lane-setup: text the output must contain |
+| `locks` | `[]` | lane-setup: resources held while the command runs |
+| `settle` | `"20s"` | lane-setup: wait this long after the port comes up |
+| `lanes` | all lane folders | lane-setup: only these lanes |
+| `path` | required for python | the file with `check(ctx)` |
+
 ## [cluster]
 
 `enabled = false`. Sharing chosen resources across machines is designed but not built yet.

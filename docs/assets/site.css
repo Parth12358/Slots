@@ -96,7 +96,9 @@ pre .c, .highlight .c, .highlight .c1, .highlight .cm { color: var(--muted); }
 
 /* ---- documents ---- */
 
-.prose { max-width: var(--measure); }
+/* Text keeps a reading measure; tables and code may run wider. */
+.prose { max-width: 54rem; min-width: 0; }
+.prose > p, .prose > ul, .prose > ol, .prose > h1, .prose > h2, .prose > h3, .prose > hr { max-width: var(--measure); }
 .prose h1 { font-size: var(--t-doc); line-height: 1.1; letter-spacing: -0.025em; font-weight: 500; margin: 0 0 1.4rem; }
 .prose h2 { font-size: 1.45rem; line-height: 1.25; letter-spacing: -0.01em; font-weight: 500; margin: 3rem 0 0.75rem; }
 .prose h3 { font-size: var(--t-h3); font-weight: 600; margin: 2rem 0 0.5rem; }
@@ -128,6 +130,8 @@ pre .c, .highlight .c, .highlight .c1, .highlight .cm { color: var(--muted); }
 .toc a:hover { color: var(--ink); }
 .toc a[aria-current="page"] { color: var(--ink); border-left-color: var(--ink); font-weight: 500; }
 .toc-text { color: var(--muted); margin: 0; font-size: var(--t-small); }
+.toc .toc-text a { display: inline; padding: 0; margin: 0; border: 0; color: var(--ink); text-decoration: underline;
+                   text-decoration-color: var(--line); }
 
 .offline { color: var(--muted); font-size: var(--t-small); margin-top: 3rem; }
 .pager { display: flex; justify-content: space-between; gap: 1rem; margin-top: 1rem; padding-top: 1.5rem; border-top: 1px solid var(--line); }

@@ -78,6 +78,7 @@ class Daemon:
             log(f"state was unreadable; moved it to {self.store.recovered_from} and started empty")
         self.broker = Broker(self.cfg.resources)
         self.broker.load_rows(self.store.load(), self._resolve_quiet)
+        self.broker.events.extend(self.store.recent_events(self.broker.events.maxlen))
         self.broker.emit("daemon-start", pid=os.getpid(), leases=len(self.broker.leases),
                          waiters=len(self.broker.waiters))
         self.out(self.broker.sweep())
@@ -331,6 +332,15 @@ class Daemon:
             self.store.log_admin({"action": "migrate", "by": msg.get("owner"), "result": done})
             self.persist()
             return {"ev": "imported", "result": done}
+
+        if op == "promote":
+            w = next((w for w in b.waiters if w.token == msg.get("token")), None)
+            if w is None:
+                return {"ev": "error", "message": "no such waiter (it may have been granted already)"}
+            out = b.promote(w)
+            self.store.log_admin({"action": "promote", "by": msg.get("owner"), "waiter": w.row()})
+            self.out(out)
+            return {"ev": "promoted", "position": 1}
 
         if op == "touch":
             n = b.touch(self.owner(msg.get("owner")))

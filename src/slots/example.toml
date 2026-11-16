@@ -33,6 +33,17 @@ key = "sha1-12"           # or "raw" to use the key itself
 # match = "my-desktop*"
 # pool.agent.size = 10
 
+# When the dashboard's "needs you" panel flags a lease or a wait.
+[warn]
+long_held_h = 12      # a lease held this long
+idle_min = 30         # a slot held with no lane processes (and no activity) this long
+wait_min = 60         # someone waiting this long
+
+# Shared things the dashboard never stops (K skips their processes).
+[protect]
+containers = []
+ports = []
+
 # What the compatibility shims (slots shims install) map onto. These are the defaults.
 # [compat]
 # agent_pool = "agent"          # agent-slot.sh acquire/release

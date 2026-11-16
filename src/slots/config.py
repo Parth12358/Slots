@@ -16,6 +16,9 @@ from pathlib import Path
 # What the compatibility shims (agent-slot.sh, slot.sh, lib-slot.sh) map onto.
 COMPAT_DEFAULTS = {"agent_pool": "agent", "test_pool": "test", "e2e_lock": "e2e",
                    "employee_family": "next-employee", "undeclared_locks": False}
+WARN_DEFAULTS = {"long_held_h": 12, "idle_min": 30, "wait_min": 60}
+# Processes outside slots counted as a lane's when their command line or folder is in the lane.
+DEFAULT_PROCESS_PATTERN = r"\b(node|vitest|playwright|tsx)\b"
 USER_CONFIG = Path("~/.config/slots/config.toml").expanduser()
 PROJECT_NAME = ".slots.toml"
 
@@ -64,6 +67,9 @@ class Config:
     families: dict[str, Family] = field(default_factory=dict)
     device: str | None = None
     compat: dict = field(default_factory=dict)
+    warn: dict = field(default_factory=dict)
+    protect: dict = field(default_factory=dict)
+    process_pattern: re.Pattern = field(default_factory=lambda: re.compile(DEFAULT_PROCESS_PATTERN))
     raw: dict = field(default_factory=dict)
 
     def resolve(self, spec: str) -> Resource:
@@ -204,6 +210,19 @@ def from_dict(raw: dict, path: Path | None = None) -> Config:
         if "{key}" not in template:
             raise ConfigError(f"family.{name}.name must contain {{key}}")
         cfg.families[name] = Family(name, template, key, tuple(spec.get("normalize", ("trim", "lower"))))
+
+    if "processes" in lanes:
+        try:
+            cfg.process_pattern = re.compile(lanes["processes"])
+        except re.error as e:
+            raise ConfigError(f"lanes.processes: {e}") from None
+    cfg.warn = {**WARN_DEFAULTS, **merged.get("warn", {})}
+    for k in WARN_DEFAULTS:
+        if not isinstance(cfg.warn[k], (int, float)) or cfg.warn[k] <= 0:
+            raise ConfigError(f"warn.{k} must be a positive number")
+    protect = merged.get("protect", {})
+    cfg.protect = {"containers": list(protect.get("containers", [])),
+                   "ports": [int(p) for p in protect.get("ports", [])]}
 
     compat = merged.get("compat", {})
     cfg.compat = {**COMPAT_DEFAULTS, **compat}

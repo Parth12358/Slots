@@ -187,7 +187,7 @@ class IdentityTest(World):
     def test_status_text_and_json(self):
         self.slots("acquire", "agent", lane="10526", check=0)
         r = self.slots("status", check=0)
-        self.assertIn("agent  pool  1/2 in use", r.stdout)
+        self.assertIn("AGENT  pool  1/2 in use", r.stdout)
         self.assertIn("10526", r.stdout)
         state = json.loads(self.slots("status", "--json", check=0).stdout)
         self.assertIn("daemon", state)

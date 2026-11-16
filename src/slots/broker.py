@@ -334,6 +334,14 @@ class Broker:
         self.emit("imported", lane=owner.lane, label=owner.label, resource=name, unit=unit)
         return lease
 
+    def promote(self, waiter: Waiter) -> Outcome:
+        """Move a waiter to the front of the line (an admin action)."""
+        if waiter in self.waiters:
+            waiter.seq = min(w.seq for w in self.waiters) - 1
+            waiter.position = None
+            self.emit("promoted", lane=waiter.owner.lane, label=waiter.owner.label, resources=waiter.resources)
+        return self.schedule()
+
     def dequeue(self, waiter: Waiter, why: str = "dequeued") -> Outcome:
         if waiter in self.waiters:
             self.waiters.remove(waiter)

@@ -19,6 +19,15 @@ hold = "command"
 name = "next-employee-{key}"           # same name as lib/env.ts nextEmployeeLock
 key = "sha1-12"
 
+[warn]
+long_held_h = 12                       # "long-held" after 12 h
+idle_min = 30                          # "idle?" after 30 min with no lane processes
+wait_min = 60
+
+[protect]                              # shared; the dashboard never stops these
+containers = ["be-postgres", "redis"]
+ports = [5432, 6431]
+
 [compat]                               # what agent-slot.sh, slot.sh and lib-slot.sh map onto
 agent_pool = "agent"
 test_pool = "test"

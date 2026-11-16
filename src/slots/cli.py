@@ -294,12 +294,49 @@ def cmd_status(ctx: Ctx) -> int:
     reply = ctx_call(ctx, {"op": "status"})
     if reply is None:
         return EXIT_UNAVAILABLE
+    state = reply["state"]
+    if ctx.args.json and not ctx.args.full:
+        json.dump(state, sys.stdout, indent=2)
+        print()
+        return 0
+    model = dashboard_model(ctx, state)
     if ctx.args.json:
-        json.dump(reply["state"], sys.stdout, indent=2)
+        json.dump({**state, "needs": [{k: n[k] for k in ("level", "text")} for n in model["needs"]],
+                   "lanes": [{k: ln[k] for k in ("name", "pids", "cpu", "rss", "ports")} |
+                             {"by_folder": sorted(ln["fallback"]),
+                              "leases": [h["id"] for _, h in ln["leases"]]} for ln in model["lanes"]],
+                   "machine": {k: v for k, v in model["machine"].items() if k not in ("procs", "cwds")}},
+                  sys.stdout, indent=2, default=list)
         print()
     else:
-        print(fmt.status_text(reply["state"]))
+        print(dashboard_text(model))
     return 0
+
+
+def dashboard_model(ctx: Ctx, state: dict) -> dict:
+    from slots import dashboard, machine
+    mach = machine.collect(str(ctx.cfg.lanes_root) if ctx.cfg.lanes_root else None)
+    return dashboard.build(state, mach, ctx.cfg, config_path=str(ctx.config_path) if ctx.config_path else None)
+
+
+def dashboard_text(model: dict, actions: bool = False) -> str:
+    from slots import dashboard
+    return dashboard.text(model, actions=actions)
+
+
+def cmd_dash(ctx: Ctx) -> int:
+    a = ctx.args
+    if a.once:
+        from slots import tui
+        print(dashboard_text(tui.collect(ctx), actions=True))
+        return 0
+    if not sys.stdout.isatty() or not sys.stdin.isatty():
+        err("slots: the dashboard needs a terminal (use `slots dash --once` or `slots status`)")
+        return EXIT_USAGE
+    from slots import tui
+    glyphs = a.glyphs or os.environ.get("SLOTS_GLYPHS", "acs")
+    bg = a.bg or os.environ.get("SLOTS_BG", "solid")
+    return tui.run(ctx, glyphs, bg)
 
 
 def confirm(prompt: str, yes: bool) -> bool:
@@ -470,8 +507,21 @@ def parser() -> argparse.ArgumentParser:
     rl.add_argument("--all", action="store_true")
     identity(rl)
 
-    s = sub.add_parser("status", help="who holds and awaits what")
-    s.add_argument("--json", action="store_true")
+    s = sub.add_parser("status", help="who holds and awaits what, lanes, ports, machine (one snapshot)")
+    s.add_argument("--json", action="store_true", help="the broker's state as JSON (fast)")
+    s.add_argument("--full", action="store_true", help="with --json: add lanes, needs-you and machine")
+
+    ds = sub.add_parser("dash", help="the live dashboard (also: plain `slots` in a terminal)")
+    ds.add_argument("--once", action="store_true", help="print one frame as text, without a terminal")
+    g = ds.add_mutually_exclusive_group()
+    g.add_argument("--acs", dest="glyphs", action="store_const", const="acs",
+                   help="safe glyphs (default): line drawing and coloured spaces")
+    g.add_argument("--unicode", dest="glyphs", action="store_const", const="unicode",
+                   help="rounded corners and block glyphs, when the terminal measures them right")
+    b = ds.add_mutually_exclusive_group()
+    b.add_argument("--solid", dest="bg", action="store_const", const="solid", help="solid dark background (default)")
+    b.add_argument("--transparent", dest="bg", action="store_const", const="transparent",
+                   help="keep the terminal's own background")
 
     ad = sub.add_parser("admin", help="act on someone else's lease (asks first; logged)")
     asub = ad.add_subparsers(dest="admin_cmd", required=True)
@@ -506,7 +556,7 @@ def parser() -> argparse.ArgumentParser:
     return p
 
 
-COMMANDS = {"run": cmd_run, "acquire": cmd_acquire, "release": cmd_release, "status": cmd_status,
+COMMANDS = {"dash": cmd_dash, "run": cmd_run, "acquire": cmd_acquire, "release": cmd_release, "status": cmd_status,
             "admin": cmd_admin, "daemon": cmd_daemon, "init": cmd_init, "shims": cmd_shims,
             "migrate": cmd_migrate}
 
@@ -533,8 +583,12 @@ def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     args.command = command
     if not args.cmd:
-        parser().print_help()
-        return EXIT_USAGE
+        if sys.stdin.isatty() and sys.stdout.isatty():
+            args = parser().parse_args([*argv, "dash"])
+            args.command = command
+        else:
+            parser().print_help()
+            return EXIT_USAGE
     try:
         ctx = Ctx(args)
         return COMMANDS[args.cmd](ctx)

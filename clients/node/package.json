@@ -1,6 +1,6 @@
 {
   "name": "slots-client",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Hold slots locks from Node (e.g. Playwright tests): waits in line, releases when the process exits",
   "type": "module",
   "main": "lock.mjs",

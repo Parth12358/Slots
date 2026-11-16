@@ -139,6 +139,20 @@ def build_panels(model: dict, inner: int, G: dict) -> dict:
                           if any(n["level"] == "hot" for n in model["needs"]) else "yellow", lines=lines)
 
     lines = []
+    for x in model.get("sessions", []):
+        held = ", ".join(f"{r['name']}#{h['unit']}" if r["kind"] == "pool" else r["name"] for r, h in x["held"])
+        busy = x["state"] == "busy"
+        segs = [mark("alive" if x["alive"] else "stale"), ("t", f"{x['id'][:8]} ", "dim"),
+                ("t", f"{(x.get('lane') or '-')[:10]:<10} ", "owner"),
+                ("t", f"{'busy' if busy else 'idle'} {fmt.dur(now - x['state_since']):>5}  ", "wait" if busy else "dim"),
+                ("t", f"{(held or 'holds nothing')[:20]:<20} ", "norm" if held else "dim")]
+        segs += proc_cols(x["cpu"], x["rss"]) + [("t", f"{len(x['pids'])}p", "dim")]
+        lines.append((segs, {"kind": "session", "session": x}))
+    if model.get("sessions") is not None:
+        P["sessions"] = dict(title=f"sessions {len(lines)}", hint="", accent="pink", lines=lines or [
+            ([("t", "  none yet: slots claude install", "dim")], None)])
+
+    lines = []
     idle_flags = {id(n["fix"]["lease"]) for n in model["needs"] if n.get("fix") and n["fix"].get("lease")}
     for ln in model["lanes"]:
         held = ", ".join(f"{r['name']}#{h['unit']}" if r["kind"] == "pool" else r["name"] for r, h in ln["leases"])
@@ -237,6 +251,13 @@ def details(model: dict, a: dict | None) -> list[str]:
         out.append(f"lane {ln['name']}: {len(ln['pids'])} procs  {ln['cpu']:.0f}% cpu  {dashboard.mb(ln['rss'])}  "
                    f"ports {' '.join(f':{p}' for p in ln['ports']) or 'none'}   (~ = found by folder, not tracked)")
         plist(ln["pids"], ln["fallback"])
+    elif k == "session":
+        x = a["session"]
+        out.append(f"session {x['id']}  lane {x.get('lane') or '-'}  {x['state']} for {fmt.dur(model['now'] - x['state_since'])}"
+                   f"  started {fmt.clock(x['started'])} ({x.get('source') or '?'})")
+        out.append(f"claude pid {x.get('pid') or '?'}  cwd {x.get('cwd') or '?'}  holds "
+                   + (", ".join(r["name"] for r, _ in x["held"]) or "nothing"))
+        plist(x["pids"])
     elif k == "pool":
         r = a["resource"]
         out.append(f"pool {r['name']}: {r['in_use']}/{r['size']} in use, {len(r['queue'])} waiting, hold {r['hold']}")
@@ -575,8 +596,8 @@ def live(stdscr, ctx, glyphs: str, bg: str):
         xs = [0, widths[0]] if wide else [0]
         panels = build_panels(data, min(widths) - 4, G)
         first = ["needs"] if "needs" in panels else []
-        stacks = [first + ["lanes", "resources"], ["activity", "ports"]] if wide else \
-            [first + ["lanes", "resources", "activity", "ports"]]
+        stacks = [first + ["sessions", "lanes", "resources"], ["activity", "ports"]] if wide else \
+            [first + ["sessions", "lanes", "resources", "activity", "ports"]]
         cols = []
         for stack in stacks:
             vl = []

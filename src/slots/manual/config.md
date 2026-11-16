@@ -73,6 +73,21 @@ What the old-script shims map onto ([compat](compat.md)).
 | `employee_family` | `"next-employee"` |
 | `undeclared_locks` | `false`: when true, a lock name that isn't declared is made on demand (for `run_exclusive`) |
 
+## [claude]
+
+How the Claude Code hooks gate Bash commands ([claude](claude.md)).
+
+| Key | Default | Meaning |
+|---|---|---|
+| `heavy` | vitest run, playwright test, npm/pnpm/yarn/bun build and test | regexes for one-shot heavy commands |
+| `stack` | docker compose up, npm/pnpm/yarn/bun dev and start, next dev | regexes for long-running local stacks |
+| `exempt` | commands through `slots`, `slot.sh`, `agent-slot.sh`, `run_in_slot`, `run_exclusive` | never wrapped again |
+| `mode` | `"block"` | `"block"`: stop heavy work without an agent slot; `"wrap"`: also run heavy commands in a test slot |
+| `slot_pool` | `compat.agent_pool` | the pool a lane must hold |
+| `wrap_pool` | `compat.test_pool` | the pool heavy commands are wrapped in |
+| `lanes_only` | `true` | only gate commands in lane folders |
+| `notify` | `false` | a desktop notification when an idle session holds a slot |
+
 ## [cluster]
 
 `enabled = false`. Sharing chosen resources across machines is designed but not built yet.

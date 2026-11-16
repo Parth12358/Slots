@@ -96,6 +96,25 @@ class Waiter:
 
 
 @dataclass
+class Session:
+    """A Claude Code session, registered by its SessionStart hook."""
+    id: str
+    lane: str | None
+    cwd: str | None
+    pid: int | None
+    pid_start: str | None
+    started: float
+    last_active: float
+    state: str = "idle"          # "busy" between a prompt and the end of the turn, else "idle"
+    state_since: float = 0.0
+    source: str | None = None    # startup | resume | clear | compact | fork
+    idle_prompts: int = 0        # Notification idle_prompt hooks since it was last busy
+
+    def row(self) -> dict:
+        return asdict(self)
+
+
+@dataclass
 class Grant:
     waiter: Waiter
     leases: list[Lease]
@@ -133,6 +152,7 @@ class Broker:
         self.alive = alive
         self.leases: list[Lease] = []
         self.waiters: list[Waiter] = []
+        self.sessions: dict[str, Session] = {}
         self.seq = 0
         self.events: deque[dict] = deque(maxlen=500)
         self.new_events: list[dict] = []
@@ -398,6 +418,9 @@ class Broker:
         out = Outcome()
         if dead:
             out.merge(self._end(dead, "holder-died"))
+        for sid, sess in list(self.sessions.items()):
+            if sess.pid and not self.alive(sess.pid, sess.pid_start):
+                out.merge(self.session_end(sid, "its process exited")[1])
         if expired:
             out.merge(self._end(expired, "expired"))
         return out
@@ -409,6 +432,56 @@ class Broker:
             if l.owner.same_holder(owner):
                 l.last_active, n = now, n + 1
         return n
+
+    # ---- sessions ------------------------------------------------------------------------------
+
+    def session_start(self, sid: str, *, lane: str | None, cwd: str | None, pid: int | None,
+                      pid_start: str | None, source: str | None = None) -> Session:
+        now = self.clock()
+        old = self.sessions.get(sid)
+        s = Session(sid, lane, cwd, pid, pid_start, old.started if old else now, now, "idle", now, source)
+        self.sessions[sid] = s
+        # Leases this session took before its pid was known now end with it.
+        if pid:
+            for l in self.leases:
+                if l.owner.session == sid and l.kind == "manual":
+                    l.kind, l.owner.pid, l.owner.pid_start = "pid", pid, pid_start
+        self.emit("session-start", lane=lane, label=lane, session=sid, source=source)
+        return s
+
+    def session_state(self, sid: str, state: str) -> Session | None:
+        s = self.sessions.get(sid)
+        if s is None:
+            return None
+        now = self.clock()
+        s.last_active = now
+        if state == "idle-prompt":
+            s.idle_prompts += 1
+            return s
+        if state != s.state:
+            s.state, s.state_since = state, now
+        if state == "busy":
+            s.idle_prompts = 0
+        for l in self.leases:
+            if l.owner.session == sid:
+                l.last_active = now
+        return s
+
+    def session_end(self, sid: str, why: str = "ended") -> tuple[list[Lease], Outcome]:
+        """The session is over: its waits end and every lease it holds is released."""
+        out = Outcome()
+        for w in [w for w in self.waiters if w.owner.session == sid]:
+            out.merge(self.dequeue(w, "gave-up"))
+        mine = [l for l in self.leases if l.owner.session == sid]
+        s = self.sessions.pop(sid, None)
+        out.merge(self._end(mine, "session-ended"))
+        self.emit("session-end", lane=s.lane if s else None, label=s.lane if s else None, session=sid,
+                  why=why, released=[f"{l.resource}#{l.unit}" for l in mine])
+        return mine, out
+
+    def session_pid(self, sid: str | None) -> tuple[int | None, str | None]:
+        s = self.sessions.get(sid) if sid else None
+        return (s.pid, s.pid_start) if s else (None, None)
 
     # ---- views ---------------------------------------------------------------------------------
 
@@ -437,12 +510,15 @@ class Broker:
                            "since": w.since, "waited": round(now - w.since, 1), "deadline": w.deadline,
                            "orphan": w.orphan_until is not None} for w in queue],
             })
-        return {"now": now, "resources": res, "events": list(self.events)[-50:]}
+        sessions = [{**s.row(), "leases": [l.id for l in self.leases if l.owner.session == s.id]}
+                    for s in sorted(self.sessions.values(), key=lambda s: s.started)]
+        return {"now": now, "resources": res, "sessions": sessions, "events": list(self.events)[-50:]}
 
     # ---- persistence ---------------------------------------------------------------------------
 
     def rows(self) -> dict:
-        return {"seq": self.seq, "leases": [l.row() for l in self.leases], "waiters": [w.row() for w in self.waiters]}
+        return {"seq": self.seq, "leases": [l.row() for l in self.leases], "waiters": [w.row() for w in self.waiters],
+                "sessions": [s.row() for s in self.sessions.values()]}
 
     def load_rows(self, rows: dict, resolve: Callable[[str], Resource | None]):
         self.seq = rows.get("seq", 0)
@@ -458,4 +534,6 @@ class Broker:
                     if r:
                         self.ensure(r)
                 self.waiters.append(Waiter(**{**d, "owner": Owner.of(d["owner"])}))
+        for d in rows.get("sessions", []):
+            self.sessions[d["id"]] = Session(**{k: d[k] for k in Session.__dataclass_fields__ if k in d})
         self.orphan_all()

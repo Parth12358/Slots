@@ -172,6 +172,18 @@ class Daemon:
                 "holders": self.describe(self.broker.blockers(w)),
                 "in_use": {n: [len(self.broker.held(n)), self.broker.resources[n].size] for n in w.resources}}
 
+    def session_view(self, sid: str) -> dict:
+        """What a hook needs to decide: the session's leases and the pools' use."""
+        b = self.broker
+        sess = b.sessions.get(sid)
+        lane = sess.lane if sess else None
+        # The session's own leases, and its lane's leases that no session holds (taken by hand).
+        mine = [l for l in b.leases if l.owner.session == sid or (lane and l.owner.lane == lane and not l.owner.session)]
+        return {"leases": [self.lrow(l) for l in mine],
+                "waiting": [w.resources for w in b.waiters if w.owner.session == sid],
+                "pools": {n: [len(b.held(n)), r.size, len([w for w in b.waiters if n in w.resources])]
+                          for n, r in b.resources.items() if r.kind == "pool"}}
+
     def lrow(self, lease) -> dict:
         res = self.broker.resources.get(lease.resource)
         return {**lease.row(), "pool": bool(res and res.kind == "pool")}
@@ -254,8 +266,17 @@ class Daemon:
 
         if op == "detach":
             owner = self.owner(msg["owner"]) if msg.get("owner") else None
+            kind = msg.get("kind", "manual")
+            if kind == "session":
+                # Held for the session: ends with the session's process, or at SessionEnd.
+                mine = [l for l in b.leases if l.token == msg["token"]]
+                sid = mine[0].owner.session if mine else None
+                pid, start = b.session_pid(sid)
+                kind = "pid" if pid else "manual"
+                if pid:
+                    owner = Owner.of({**asdict(mine[0].owner), "pid": pid, "pid_start": start})
             try:
-                leases = b.detach(msg["token"], msg.get("kind", "manual"), owner)
+                leases = b.detach(msg["token"], kind, owner)
             except ValueError as e:
                 return {"ev": "error", "message": str(e)}
             self.persist()
@@ -341,6 +362,25 @@ class Daemon:
             self.store.log_admin({"action": "promote", "by": msg.get("owner"), "waiter": w.row()})
             self.out(out)
             return {"ev": "promoted", "position": 1}
+
+        if op == "session-start":
+            sess = b.session_start(msg["session"], lane=msg.get("lane"), cwd=msg.get("cwd"), pid=msg.get("pid"),
+                                   pid_start=proc.start_time(msg["pid"]) if msg.get("pid") else None,
+                                   source=msg.get("source"))
+            self.persist()
+            return {"ev": "session", "session": sess.row(), **self.session_view(sess.id)}
+
+        if op == "session":
+            sess = b.session_state(msg["session"], msg["state"]) if msg.get("state") else b.sessions.get(msg["session"])
+            if msg.get("state"):
+                self.persist()
+            return {"ev": "session", "session": sess.row() if sess else None, **self.session_view(msg["session"])}
+
+        if op == "session-end":
+            released, out = b.session_end(msg["session"], msg.get("reason") or "ended")
+            self.out(out)
+            self.persist()
+            return {"ev": "session-ended", "leases": [self.lrow(l) for l in released]}
 
         if op == "touch":
             n = b.touch(self.owner(msg.get("owner")))

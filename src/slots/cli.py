@@ -42,6 +42,12 @@ class Ctx:
             self._cfg = config.load(self.config_path)
         return self._cfg
 
+    @property
+    def slots_cmd(self) -> str:
+        """How hooks and shims run this slots, with this config."""
+        from slots import shims
+        return shims.slots_command(self.config_path.resolve() if self.config_path else None)
+
     def client(self) -> Client:
         return Client(self.paths, self.config_path)
 
@@ -226,7 +232,8 @@ def hold(ctx: Ctx, resources: list[str], owner: dict, *, wait: bool, timeout: fl
         c.connect()
         ev, msg = wait_for_grant(c, req, on_queued)
         if ev == "granted" and any(l["token"] == token for l in msg["leases"]):
-            c.send({"op": "detach", "token": token, "kind": "pid" if pid else "manual"})
+            kind = "pid" if pid else "session" if owner.get("session") else "manual"
+            c.send({"op": "detach", "token": token, "kind": kind})
             reply = c.recv(10)
             if not reply or reply.get("ev") != "detached":
                 return "error", {"message": f"couldn't keep the lease: {(reply or {}).get('message', 'daemon went away')}"}
@@ -480,6 +487,45 @@ def cmd_man(ctx: Ctx) -> int:
     return 0
 
 
+def cmd_hook(ctx: Ctx) -> int:
+    from slots import claude
+    return claude.run_hook(ctx, ctx.args.event, sys.stdin.read())
+
+
+def cmd_claude(ctx: Ctx) -> int:
+    from slots import claude
+    a = ctx.args
+    scope = "project" if a.project else "user"
+    if a.claude_cmd == "skill":
+        text = claude.skill(ctx.cfg)
+        if a.print:
+            sys.stdout.write(text)
+            return 0
+        target = Path(a.output).expanduser() if a.output else claude.skill_path(scope)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        old = target.read_text() if target.exists() else None
+        target.write_text(text)
+        print(f"{'unchanged' if old == text else 'wrote'} {target}")
+        return 0
+    if ctx.config_path is None:
+        err("slots: no config found: run `slots init` first, so the hooks know which config to use")
+        return EXIT_USAGE
+    claude.settings(ctx.cfg)   # fail now on a bad [claude] table
+    path = claude.settings_path(scope)
+    current = claude.load_settings(path)
+    new = claude.merged(current, ctx.slots_cmd if a.claude_cmd == "install" else None)
+    diff = claude.apply(path, new, ctx.paths.home / "backups", a.dry_run)
+    print(diff, end="" if diff.endswith("\n") else "\n")
+    if a.dry_run:
+        print("(dry run: nothing was written)")
+    elif diff != "no change":
+        print(f"{'installed hooks in' if a.claude_cmd == 'install' else 'removed slots hooks from'} {path}"
+              + (f"; the old file is in {ctx.paths.home / 'backups'}" if current else ""))
+        if a.claude_cmd == "install":
+            print("New sessions pick them up; running sessions after a restart. Also: slots claude skill")
+    return 0
+
+
 def cmd_init(ctx: Ctx) -> int:
     target = Path(ctx.args.path or config.USER_CONFIG).expanduser()
     if target.exists() and not ctx.args.force:
@@ -571,6 +617,26 @@ def parser() -> argparse.ArgumentParser:
     m.add_argument("--locks", help="the old lock folder (default OLD_ROOT/ta-e2e/.locks)")
     m.add_argument("--apply", action="store_true")
 
+    hk = sub.add_parser("hook", help="run by Claude Code's hooks (reads the event's JSON on stdin)")
+    hk.add_argument("event", choices=["session-start", "user-prompt", "pre-tool-use", "stop", "notification",
+                                      "session-end"])
+
+    cl = sub.add_parser("claude", help="Claude Code: install hooks, write the skill")
+    csub = cl.add_subparsers(dest="claude_cmd", required=True)
+    for name, text in (("install", "add the slots hooks to Claude Code's settings (shows the diff)"),
+                       ("uninstall", "remove the slots hooks (and only those)")):
+        c = csub.add_parser(name, help=text)
+        where = c.add_mutually_exclusive_group()
+        where.add_argument("--user", action="store_true", help="~/.claude/settings.json (default)")
+        where.add_argument("--project", action="store_true", help="./.claude/settings.local.json")
+        c.add_argument("--dry-run", action="store_true", help="show the diff, change nothing")
+    ck = csub.add_parser("skill", help="write the local-slots skill, generated from this config")
+    where = ck.add_mutually_exclusive_group()
+    where.add_argument("--user", action="store_true", help="~/.claude/skills/local-slots/SKILL.md (default)")
+    where.add_argument("--project", action="store_true", help="./.claude/skills/local-slots/SKILL.md")
+    where.add_argument("-o", "--output", help="write it here instead")
+    where.add_argument("--print", action="store_true", help="print it instead")
+
     h = sub.add_parser("help", help="the manual: topics, or one topic or command")
     h.add_argument("topic", nargs="?")
 
@@ -586,7 +652,8 @@ def parser() -> argparse.ArgumentParser:
 
 COMMANDS = {"dash": cmd_dash, "run": cmd_run, "acquire": cmd_acquire, "release": cmd_release, "status": cmd_status,
             "admin": cmd_admin, "daemon": cmd_daemon, "init": cmd_init, "shims": cmd_shims,
-            "migrate": cmd_migrate, "help": cmd_help, "man": cmd_man}
+            "migrate": cmd_migrate, "help": cmd_help, "man": cmd_man,
+            "hook": cmd_hook, "claude": cmd_claude}
 
 
 def main(argv: list[str] | None = None) -> int:

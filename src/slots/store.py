@@ -45,8 +45,10 @@ class Store:
 
     def load(self) -> dict:
         seq = self.db.execute("SELECT value FROM meta WHERE key='seq'").fetchone()
+        sessions = self.db.execute("SELECT value FROM meta WHERE key='sessions'").fetchone()
         return {
             "seq": int(seq[0]) if seq else 0,
+            "sessions": json.loads(sessions[0]) if sessions else [],
             "leases": [json.loads(r) for (r,) in self.db.execute("SELECT row FROM lease")],
             "waiters": [json.loads(r) for (r,) in self.db.execute("SELECT row FROM waiter")],
         }
@@ -56,6 +58,7 @@ class Store:
         db.execute("BEGIN IMMEDIATE")
         try:
             db.execute("INSERT OR REPLACE INTO meta VALUES ('seq', ?)", (str(rows["seq"]),))
+            db.execute("INSERT OR REPLACE INTO meta VALUES ('sessions', ?)", (json.dumps(rows.get("sessions", [])),))
             db.execute("DELETE FROM lease")
             db.executemany("INSERT INTO lease VALUES (?, ?)", [(l["id"], json.dumps(l)) for l in rows["leases"]])
             db.execute("DELETE FROM waiter")

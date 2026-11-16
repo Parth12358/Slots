@@ -39,5 +39,6 @@ The lane is the folder directly under the configured root that your working dire
 | `refused: ... doesn't hold it; held by ...` | It isn't yours. Leave it alone. |
 | `... holds nothing to release` | Nothing to do; you held nothing. |
 | `can't reach the slots daemon` (exit 69) | Report it; don't work around it. |
+| A Bash call blocked: "holds no agent slot" | `slots acquire agent --wait`, then run it again (heavy ones as `slots run test -- ...`). |
 
 Full details: [cli](cli.md), [concepts](concepts.md), [troubleshooting](troubleshooting.md).

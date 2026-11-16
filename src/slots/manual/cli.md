@@ -103,6 +103,28 @@ slots daemon status | stop | run
 The background broker. It starts by itself; `stop` ends it (the next command starts a new one,
 and running commands keep their slots). `run` runs it in the foreground.
 
+## slots claude
+
+```
+slots claude install [--user | --project] [--dry-run]
+slots claude uninstall [--user | --project] [--dry-run]
+slots claude skill [--user | --project | -o FILE | --print]
+```
+
+Adds the slots hooks to Claude Code's settings (`~/.claude/settings.json`, or
+`./.claude/settings.local.json` with `--project`), showing the diff first; other settings and
+hooks are kept, and the old file is backed up under the state folder. `uninstall` removes only
+ours. `skill` writes the `local-slots` skill, generated from the config. See [claude](claude.md).
+
+## slots hook
+
+```
+slots hook session-start | user-prompt | pre-tool-use | stop | notification | session-end
+```
+
+What the installed hooks run, with the event's JSON on stdin. Always exits 0 (a deny is a JSON
+decision on stdout); failures go to `hooks.log` in the state folder.
+
 ## slots help
 
 ```
@@ -144,6 +166,7 @@ Used by the shims (`agent-slot`, `run-in-slot`, `run-exclusive`, `employee-lock`
 | `SLOTS_CONFIG` | the config file |
 | `SLOTS_HOME` | the state folder (default `~/.local/state/slots`) |
 | `SLOTS_LANE` | the lane, when the working folder doesn't say |
-| `SLOTS_SESSION` | the Claude Code session id |
+| `SLOTS_SESSION` | the Claude Code session id (set for the session's commands by the SessionStart hook) |
+| `SLOTS_SESSION_PID` | the session's `claude` process, when the hook can't find it by itself |
 | `SLOTS_DEVICE` | which `[device.<name>]` override to use |
 | `SLOTS_GLYPHS`, `SLOTS_BG` | dashboard defaults |

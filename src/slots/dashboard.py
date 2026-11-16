@@ -41,13 +41,16 @@ def build(state: dict, mach: dict, cfg: config.Config, *, now: float | None = No
     def lane(name: str) -> dict:
         return lanes.setdefault(name, {"name": name, "leases": [], "waiting": [], "exact": set(), "fallback": set()})
 
-    # Exact: the process trees of leases' holders (`slots run` clients and pid leases).
+    # Exact: the process trees of leases' holders (`slots run` clients and pid leases). A lease held
+    # for a Claude Code session is tied to the session's own process, whose tree is everything the
+    # session runs (its shell, its MCP servers): that's shown on the session, not counted as lane work.
+    session_pids = {x["pid"] for x in state.get("sessions", []) if x.get("pid")}
     for r, h in lease_rows(state):
         name = h["owner"].get("lane") or h["owner"].get("label") or "?"
         ln = lane(name)
         ln["leases"].append((r, h))
         pid = h["owner"].get("pid")
-        if pid and h["kind"] in ("conn", "pid") and pid in procs:
+        if pid and h["kind"] in ("conn", "pid") and pid in procs and pid not in session_pids:
             ln["exact"].update(machine.tree(pid, procs, kids))
     for r in state["resources"]:
         for w in r["queue"]:
@@ -79,6 +82,15 @@ def build(state: dict, mach: dict, cfg: config.Config, *, now: float | None = No
         ln["rss"] = sum(procs[p]["rss"] for p in pids if p in procs)
         ln["ports"] = sorted(set().union(*(pid_ports.get(p, set()) for p in pids)) if pids else set())
 
+    sessions = []
+    for x in state.get("sessions", []):
+        pids = [p for p in machine.tree(x["pid"], procs, kids) if p != x["pid"]] if x.get("pid") in procs else []
+        held = [(r, h) for r, h in lease_rows(state) if h["id"] in set(x.get("leases", []))]
+        sessions.append({**x, "pids": pids, "held": held, "alive": x.get("pid") in procs,
+                         "cpu": sum(procs[p]["cpu"] for p in pids), "rss": sum(procs[p]["rss"] for p in pids)})
+        if x.get("lane"):
+            lane(x["lane"]).setdefault("sessions", []).append(x["id"])
+
     # What needs a person, most urgent first.
     warn = cfg.warn
     needs = []
@@ -101,9 +113,15 @@ def build(state: dict, mach: dict, cfg: config.Config, *, now: float | None = No
         quiet = now - max(h["since"], h.get("last_active") or 0)
         what = f"{r['name']} slot {h['unit']}" if r["kind"] == "pool" else r["name"]
         act = {"kind": "lease", "resource": r, "lease": h}
+        sess = next((x for x in sessions if x["id"] == h["owner"].get("session")), None)
+        if sess and sess["state"] == "busy":
+            quiet = 0   # its session is working on a turn right now
+        elif sess:
+            quiet = now - max(sess["state_since"], h["since"])
         if quiet >= warn["idle_min"] * 60 and not ln.get("pids"):
             nopid = "; no pid ties it to a process" if h["kind"] == "manual" else ""
-            needs.append({"level": "warn", "text": f"idle? {name} holds {what} with no processes for "
+            who = f"session {sess['id'][:8]} ({name}) is idle and" if sess else f"{name}"
+            needs.append({"level": "warn", "text": f"idle? {who} holds {what} with no processes for "
                           f"{fmt.dur(quiet)}{nopid}", "fix": act, "fix_label": "release"})
         elif age >= warn["long_held_h"] * 3600:
             needs.append({"level": "warn", "text": f"long-held: {name} has held {what} for {fmt.dur(age)}",
@@ -122,6 +140,7 @@ def build(state: dict, mach: dict, cfg: config.Config, *, now: float | None = No
     claude_ports = [p for p in mach.get("ports", []) if CLAUDE_CMD.match(p["cmd"])]
     return {
         "now": now, "needs": needs, "lanes": sorted(lanes.values(), key=lambda l: (-l["cpu"], l["name"])),
+        "sessions": sessions,
         "resources": state["resources"], "events": state.get("events", [])[-40:], "daemon": daemon,
         "ports": dev_ports, "hidden_ports": len(mach.get("ports", [])) - len(dev_ports),
         "claude_ports": len(claude_ports), "containers": mach.get("containers"), "machine": mach,
@@ -163,6 +182,13 @@ def event_text(e: dict) -> str:
                 "left-queue": "left the queue for", "admin-dequeue": "was dequeued by admin from",
                 "promoted": "was moved to the front for"}[kind]
         return f"{who} {verb} {', '.join(e.get('resources', []))}"
+    if kind == "session-start":
+        return f"session {e.get('session', '')[:8]} started in {who or 'no lane'} ({e.get('source') or 'startup'})"
+    if kind == "session-end":
+        rel = f"; released {', '.join(e['released'])}" if e.get("released") else ""
+        return f"session {e.get('session', '')[:8]} ended ({e.get('why')}){rel}"
+    if kind == "session-ended":
+        return f"released {e.get('resource')}#{e.get('unit')} as {who}'s session ended"
     if kind == "daemon-start":
         return f"daemon started (pid {e.get('pid')}; {e.get('leases', 0)} leases, {e.get('waiters', 0)} waiting)"
     if kind == "imported":
@@ -185,6 +211,13 @@ def text(model: dict, *, actions: bool = False) -> str:
         out.append("NEEDS YOU")
         for n in model["needs"]:
             line(f"[{n['level']}] {n['text']}" + (f"  ({n['fix_label']})" if n.get("fix") else ""), n.get("fix"))
+    out.append(f"SESSIONS  {len(model['sessions'])}")
+    if not model["sessions"]:
+        line("none (install the hooks: slots claude install)")
+    for x in model["sessions"]:
+        held = ", ".join(f"{r['name']}#{h['unit']}" if r["kind"] == "pool" else r["name"] for r, h in x["held"])
+        line(f"{x['id'][:8]}  {x.get('lane') or '-':<10} {x['state']} {fmt.dur(now - x['state_since'])}  "
+             f"{held or 'holds nothing'}  {len(x['pids'])} procs {mb(x['rss'])}", {"kind": "session"})
     out.append(f"LANES  {len(model['lanes'])}")
     if not model["lanes"]:
         line("none")

@@ -282,15 +282,22 @@ class Daemon:
             if admin and names is None and not msg.get("lease_id"):
                 return {"ev": "error", "message": "an admin release must name a resource or lease"}
             owner = self.owner(msg.get("owner"))
+            left = []
+            if msg.get("leave_queue") and names:
+                left, out = b.leave(names, owner)
+                for w in left:
+                    if w.conn:
+                        w.conn.send({"ev": "dequeued", "by": "owner"})
+                self.out(out)
             try:
                 released, out = b.release(names, owner, admin=admin, unit=msg.get("unit"), lease_id=msg.get("lease_id"))
             except Refused as e:
-                return {"ev": "refused", "message": str(e), "holders": self.describe(e.leases)}
+                return {"ev": "refused", "message": str(e), "holders": self.describe(e.leases), "left_queue": len(left)}
             if admin and released:
                 self.store.log_admin({"action": "release", "by": asdict(owner), "reason": msg.get("reason"),
                                       "leases": [self.lrow(l) for l in released]})
             self.out(out)
-            return {"ev": "released", "leases": [self.lrow(l) for l in released]}
+            return {"ev": "released", "leases": [self.lrow(l) for l in released], "left_queue": len(left)}
 
         if op == "dequeue":
             matches = [w for w in b.waiters
@@ -309,6 +316,21 @@ class Daemon:
                                       "waiters": [x.row() for x in matches]})
             self.out(out)
             return {"ev": "dequeued", "count": len(matches)}
+
+        if op == "import":
+            done = []
+            for d in msg["leases"]:
+                try:
+                    res = self.cfg.resolve(d["resource"])
+                except config.ConfigError as e:
+                    done.append({"resource": d["resource"], "error": str(e)})
+                    continue
+                b.ensure(res)
+                lease = b.import_lease(res.name, self.owner(d["owner"]), d["kind"], d["since"])
+                done.append(self.lrow(lease) if lease else {"resource": res.name, "skipped": "already imported"})
+            self.store.log_admin({"action": "migrate", "by": msg.get("owner"), "result": done})
+            self.persist()
+            return {"ev": "imported", "result": done}
 
         if op == "touch":
             n = b.touch(self.owner(msg.get("owner")))

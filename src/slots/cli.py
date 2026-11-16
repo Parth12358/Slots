@@ -53,10 +53,23 @@ class Ctx:
 
 # ---- run / acquire -------------------------------------------------------------------------------
 
-def wait_for_grant(c: Client, req: dict, quiet: bool = False) -> tuple[str, dict]:
+def say_waiting(quiet: bool = False):
+    """The default "queued" handler: one line when the wait starts, and again when we're next."""
+    said = None
+
+    def on_queued(msg: dict):
+        nonlocal said
+        line = fmt.waiting_line(msg)
+        if not quiet and line != said and (said is None or msg["position"] == 1):
+            err(line)
+        said = line
+    return on_queued
+
+
+def wait_for_grant(c: Client, req: dict, on_queued=None) -> tuple[str, dict]:
     """Send an acquire and follow it to the end, reconnecting if the daemon restarts.
     Returns ("granted"|"already"|"busy"|"timeout"|"error"|"dequeued", last message)."""
-    said = None
+    on_queued = on_queued or say_waiting()
     deadline = time.monotonic() + req["timeout"] if req.get("timeout") else None
     while True:
         try:
@@ -67,10 +80,7 @@ def wait_for_grant(c: Client, req: dict, quiet: bool = False) -> tuple[str, dict
                     break   # daemon went away: reconnect and ask again with the same token
                 ev = msg["ev"]
                 if ev == "queued":
-                    line = fmt.waiting_line(msg)
-                    if not quiet and line != said and (said is None or msg["position"] == 1):
-                        err(line)
-                    said = line
+                    on_queued(msg)
                     continue
                 return ev, msg
         except (BrokenPipeError, ConnectionError):
@@ -110,27 +120,34 @@ def cmd_run(ctx: Ctx) -> int:
         err("usage: slots run <resource...> [--label L] [--timeout S] -- <command...>")
         return EXIT_USAGE
     label = a.label or " ".join(x for x in (ctx.owner()["lane"], Path(command[0]).name) if x)
+    return run_holding(ctx, a.resources, label, command, wait=not a.no_wait, timeout=a.timeout,
+                       quiet=a.quiet, on_queued=say_waiting(a.quiet))
+
+
+def run_holding(ctx: Ctx, resources: list[str], label: str, command: list[str], *, wait: bool = True,
+                timeout: float | None = None, quiet: bool = False, on_queued=None, extra_env: dict | None = None,
+                on_failure=None) -> int:
+    """Wait for `resources`, run `command` holding them, and return its exit code."""
     token = secrets.token_hex(8)
-    req = {"op": "acquire", "resources": a.resources, "owner": ctx.owner(label, os.getpid()),
-           "token": token, "wait": not a.no_wait, "timeout": a.timeout}
+    req = {"op": "acquire", "resources": resources, "owner": ctx.owner(label, os.getpid()),
+           "token": token, "wait": wait, "timeout": timeout}
     c = ctx.client()
     try:
         c.connect()
     except Unavailable as e:
-        err(f"slots: {e}")
-        return EXIT_UNAVAILABLE
+        return (on_failure or report_failure)("unavailable", {"message": str(e)})
 
     # While waiting, Ctrl-C or a kill just ends the wait (closing the connection leaves the queue).
-    ev, msg = wait_for_grant(c, req, quiet=a.quiet)
+    ev, msg = wait_for_grant(c, req, on_queued)
     if ev not in ("granted", "already"):
         c.close()
-        return report_failure(ev, msg)
+        return (on_failure or report_failure)(ev, msg)
     leases = msg["leases"]
-    if not a.quiet:
+    if not quiet:
         err(f"slots: {label} holds {lease_names(leases)}")
 
     env = dict(os.environ, SLOTS_RUN_TOKEN=token,
-               SLOTS_LEASES=",".join(f"{l['resource']}#{l['unit']}" for l in leases))
+               SLOTS_LEASES=",".join(f"{l['resource']}#{l['unit']}" for l in leases), **(extra_env or {}))
     try:
         child = subprocess.Popen(command, env=env)
     except OSError as e:
@@ -150,7 +167,7 @@ def cmd_run(ctx: Ctx) -> int:
     signal.signal(signal.SIGINT, signal.SIG_IGN if sys.stdin.isatty() else forward)
 
     done = threading.Event()
-    threading.Thread(target=hold_connection, args=(c, token, done, a.quiet), daemon=True).start()
+    threading.Thread(target=hold_connection, args=(c, token, done, quiet), daemon=True).start()
     code = child.wait()
     done.set()
     c.close()   # releases the leases
@@ -196,38 +213,43 @@ def report_failure(ev: str, msg: dict) -> int:
     return EXIT_USAGE if ev == "error" else EXIT_UNAVAILABLE
 
 
+def hold(ctx: Ctx, resources: list[str], owner: dict, *, wait: bool, timeout: float | None = None,
+         pid: int | None = None, on_queued=None) -> tuple[str, dict]:
+    """Acquire leases that outlive this process (a pid lease with `pid`, else manual).
+    Returns wait_for_grant's (event, message); the message's leases include ones already held."""
+    token = secrets.token_hex(8)
+    req = {"op": "acquire", "resources": resources, "owner": owner, "token": token,
+           "wait": wait, "timeout": timeout, "idempotent": True}
+    c = ctx.client()
+    try:
+        c.connect()
+        ev, msg = wait_for_grant(c, req, on_queued)
+        if ev == "granted" and any(l["token"] == token for l in msg["leases"]):
+            c.send({"op": "detach", "token": token, "kind": "pid" if pid else "manual"})
+            reply = c.recv(10)
+            if not reply or reply.get("ev") != "detached":
+                return "error", {"message": f"couldn't keep the lease: {(reply or {}).get('message', 'daemon went away')}"}
+        return ev, msg
+    except Unavailable as e:
+        return "unavailable", {"message": str(e)}
+    finally:
+        c.close()
+
+
 def cmd_acquire(ctx: Ctx) -> int:
     a = ctx.args
     owner = ctx.owner(a.label, a.pid)
     if not owner["lane"]:
         err("slots: not inside a lane folder; pass --lane <ticket> (or set SLOTS_LANE)")
         return EXIT_USAGE
-    token = secrets.token_hex(8)
-    req = {"op": "acquire", "resources": a.resources, "owner": owner, "token": token,
-           "wait": a.wait, "timeout": a.timeout, "idempotent": True}
-    c = ctx.client()
-    try:
-        c.connect()
-        ev, msg = wait_for_grant(c, req)
-        if ev == "already":
-            print(f"{owner['lane']} already holds {lease_names(msg['leases'])}")
-            return 0
-        if ev != "granted":
-            return report_failure(ev, msg)
-        fresh = [l for l in msg["leases"] if l["token"] == token]
-        if fresh:
-            c.send({"op": "detach", "token": token, "kind": "pid" if a.pid else "manual"})
-            reply = c.recv(10)
-            if not reply or reply.get("ev") != "detached":
-                err(f"slots: couldn't keep the lease: {(reply or {}).get('message', 'daemon went away')}")
-                return EXIT_UNAVAILABLE
-        print(f"{owner['lane']} took {lease_names(msg['leases'])}")
+    ev, msg = hold(ctx, a.resources, owner, wait=a.wait, timeout=a.timeout, pid=a.pid)
+    if ev == "already":
+        print(f"{owner['lane']} already holds {lease_names(msg['leases'])}")
         return 0
-    except Unavailable as e:
-        err(f"slots: {e}")
-        return EXIT_UNAVAILABLE
-    finally:
-        c.close()
+    if ev != "granted":
+        return report_failure(ev, msg)
+    print(f"{owner['lane']} took {lease_names(msg['leases'])}")
+    return 0
 
 
 def cmd_release(ctx: Ctx) -> int:
@@ -351,6 +373,55 @@ def cmd_daemon(ctx: Ctx) -> int:
         c.close()
 
 
+def cmd_shims(ctx: Ctx) -> int:
+    from slots import shims
+    a = ctx.args
+    if ctx.config_path is None:
+        err("slots: no config found: run `slots init` first, so the shims know which config to use")
+        return EXIT_USAGE
+    ctx.cfg  # the shims map onto [compat]; fail now on a bad config
+    try:
+        report = shims.install(Path(a.dir).expanduser(), ctx.config_path,
+                               only=a.only.split(",") if a.only else None, force=a.force)
+    except ValueError as e:
+        err(f"slots: {e}")
+        return EXIT_USAGE
+    print("\n".join(report))
+    return 0
+
+
+def cmd_migrate(ctx: Ctx) -> int:
+    from slots import migrate
+    a = ctx.args
+    root = Path(a.from_root).expanduser()
+    if not root.is_dir():
+        err(f"slots: {root} is not a folder")
+        return EXIT_USAGE
+    items = migrate.plan(root, ctx.cfg, Path(a.locks).expanduser() if a.locks else None)
+    print(migrate.render(items))
+    leases = [i.lease for i in items if i.action == "import"]
+    if not a.apply:
+        print(f"\ndry run: nothing changed. {len(leases)} lease(s) would be imported; run again with --apply.")
+        return 0
+    if not leases:
+        print("\nnothing to import.")
+        return 0
+    by = {"lane": "admin", "label": f"migrate ({os.environ.get('USER', '?')})"}
+    reply = ctx_call(ctx, {"op": "import", "leases": leases, "owner": by})
+    if reply is None:
+        return EXIT_UNAVAILABLE
+    print()
+    for r in reply["result"]:
+        if "error" in r:
+            print(f"failed   {r['resource']}: {r['error']}")
+        elif "skipped" in r:
+            print(f"skipped  {r['resource']}: {r['skipped']}")
+        else:
+            print(f"imported {lease_names([r])} for {fmt.who(r['owner'])} ({r['kind']} lease)")
+    print(f"old files under {root} were left as they are.")
+    return 0
+
+
 def cmd_init(ctx: Ctx) -> int:
     target = Path(ctx.args.path or config.USER_CONFIG).expanduser()
     if target.exists() and not ctx.args.force:
@@ -418,6 +489,17 @@ def parser() -> argparse.ArgumentParser:
     d = sub.add_parser("daemon", help="the background broker (started automatically)")
     d.add_argument("daemon_cmd", choices=["run", "stop", "status"])
 
+    sh = sub.add_parser("shims", help="install agent-slot.sh, slot.sh and lib-slot.sh shims")
+    sh.add_argument("shims_cmd", choices=["install"])
+    sh.add_argument("--dir", required=True, help="where to write them")
+    sh.add_argument("--only", help="comma-separated: agent-slot.sh,slot.sh,lib-slot.sh")
+    sh.add_argument("--force", action="store_true", help="replace existing files (kept as <name>.orig-<time>)")
+
+    m = sub.add_parser("migrate", help="adopt holders from the old scripts (dry run unless --apply)")
+    m.add_argument("--from", dest="from_root", required=True, metavar="OLD_ROOT")
+    m.add_argument("--locks", help="the old lock folder (default OLD_ROOT/ta-e2e/.locks)")
+    m.add_argument("--apply", action="store_true")
+
     i = sub.add_parser("init", help="write a commented example config")
     i.add_argument("--path", help=f"where to write it (default {config.USER_CONFIG})")
     i.add_argument("--force", action="store_true")
@@ -425,7 +507,8 @@ def parser() -> argparse.ArgumentParser:
 
 
 COMMANDS = {"run": cmd_run, "acquire": cmd_acquire, "release": cmd_release, "status": cmd_status,
-            "admin": cmd_admin, "daemon": cmd_daemon, "init": cmd_init}
+            "admin": cmd_admin, "daemon": cmd_daemon, "init": cmd_init, "shims": cmd_shims,
+            "migrate": cmd_migrate}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -435,6 +518,18 @@ def main(argv: list[str] | None = None) -> int:
     if "--" in argv:
         i = argv.index("--")
         argv, command = argv[:i], argv[i + 1:]
+    # `slots [--config C] compat <name> ...` takes the old scripts' arguments verbatim.
+    head = argv[2:] if argv[:1] == ["--config"] else argv
+    if head[:1] == ["compat"]:
+        from slots import compat
+        args = argparse.Namespace(config=argv[1] if argv[:1] == ["--config"] else None)
+        try:
+            return compat.main(Ctx(args), head[1:], command)
+        except config.ConfigError as e:
+            err(f"slots: {e}")
+            return EXIT_USAGE
+        except KeyboardInterrupt:
+            return 130
     args = parser().parse_args(argv)
     args.command = command
     if not args.cmd:

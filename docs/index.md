@@ -29,6 +29,14 @@ slots release agent
 slots status                         # who holds and awaits what (--json for tools)
 ```
 
+## Coming from agent-slot.sh / slot.sh
+
+```bash
+slots migrate --from ~/old/root            # shows what would be imported; changes nothing
+slots migrate --from ~/old/root --apply    # adopts live holders; old files are left alone
+slots shims install --dir ~/old/root       # agent-slot.sh with the same arguments and output
+```
+
 ## More
 
 - [Design](design.md): the broker, its failure modes, state, CLI, and the Claude Code hook plan.

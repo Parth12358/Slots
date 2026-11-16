@@ -291,7 +291,11 @@ class Broker:
             if admin or l.owner.same_holder(owner):
                 targets.append(l)
         if not targets and names is not None and not admin:
-            others = [l for l in self.leases if l.resource in names]
+            # Someone else holding a lock is a refusal; for a pool only our own lane's unit held by
+            # another session is (other lanes' units of a pool are simply not ours to release).
+            others = [l for l in self.leases if l.resource in names and (
+                self.resources.get(l.resource) is None or self.resources[l.resource].kind == "lock"
+                or (owner.lane and l.owner.lane == owner.lane))]
             if others:
                 who = "; ".join(f"{l.owner.describe()} ({l.resource} #{l.unit})" for l in others)
                 raise Refused(f"not yours: held by {who}", others)
@@ -308,6 +312,27 @@ class Broker:
         out = self.schedule()
         out.released += leases
         return out
+
+    def leave(self, names: list[str], owner: Owner) -> tuple[list[Waiter], Outcome]:
+        """The requester's own waits on `names` end (e2e-release also leaves the queue)."""
+        mine = [w for w in self.waiters if set(w.resources) & set(names) and w.owner.same_holder(owner)]
+        out = Outcome()
+        for w in mine:
+            out.merge(self.dequeue(w, "left-queue"))
+        return mine, out
+
+    def import_lease(self, name: str, owner: Owner, kind: str, since: float) -> Lease | None:
+        """Adopt a holder from the old scripts (slots migrate). Skips one that's already imported;
+        may go over a pool's size, since the holder is already running."""
+        for l in self.held(name):
+            if (l.owner.lane, l.owner.label, l.owner.pid) == (owner.lane, owner.label, owner.pid):
+                return None
+        taken = {l.unit for l in self.held(name)}
+        unit = next(u for u in range(1, len(taken) + 2) if u not in taken)
+        lease = Lease(secrets.token_hex(6), name, unit, kind, owner, secrets.token_hex(8), since, self.clock())
+        self.leases.append(lease)
+        self.emit("imported", lane=owner.lane, label=owner.label, resource=name, unit=unit)
+        return lease
 
     def dequeue(self, waiter: Waiter, why: str = "dequeued") -> Outcome:
         if waiter in self.waiters:

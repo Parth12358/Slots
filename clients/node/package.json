@@ -1,0 +1,14 @@
+{
+  "name": "slots-client",
+  "version": "0.1.0",
+  "description": "Hold slots locks from Node (e.g. Playwright tests): waits in line, releases when the process exits",
+  "type": "module",
+  "main": "lock.mjs",
+  "types": "lock.d.ts",
+  "exports": {
+    ".": { "types": "./lock.d.ts", "default": "./lock.mjs" },
+    "./playwright": { "types": "./playwright.d.ts", "default": "./playwright.mjs" }
+  },
+  "files": ["lock.mjs", "lock.d.ts", "playwright.mjs", "playwright.d.ts"],
+  "license": "MIT"
+}

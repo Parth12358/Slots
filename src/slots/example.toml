@@ -33,6 +33,14 @@ key = "sha1-12"           # or "raw" to use the key itself
 # match = "my-desktop*"
 # pool.agent.size = 10
 
+# What the compatibility shims (slots shims install) map onto. These are the defaults.
+# [compat]
+# agent_pool = "agent"          # agent-slot.sh acquire/release
+# test_pool = "test"            # slot.sh, run_in_slot
+# e2e_lock = "e2e"              # agent-slot.sh e2e-acquire/e2e-release
+# employee_family = "next-employee"   # next_employee_lock
+# undeclared_locks = false      # let run_exclusive take locks not declared here
+
 # Sharing chosen resources across machines. Not built yet; keep this off.
 [cluster]
 enabled = false

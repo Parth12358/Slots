@@ -21,7 +21,7 @@ root = "{root}"
 pattern = '^(?P<ticket>\\d+)$'
 
 [pool.agent]
-size = 2
+size = {agent}
 hold = "session"
 
 [pool.test]
@@ -38,6 +38,7 @@ key = "sha1-12"
 
 class World(unittest.TestCase):
     extra_config = ""
+    agent_size = 2
 
     def setUp(self):
         # Short paths: a Unix socket path must stay under ~100 bytes (macOS temp dirs are long).
@@ -46,7 +47,7 @@ class World(unittest.TestCase):
         self.root = self.dir / "lanes"
         self.root.mkdir()
         self.config = self.dir / "slots.toml"
-        self.config.write_text(CONFIG.format(root=self.root) + textwrap.dedent(self.extra_config))
+        self.config.write_text(CONFIG.format(root=self.root, agent=self.agent_size) + textwrap.dedent(self.extra_config))
         self.env = {**os.environ, "SLOTS_HOME": str(self.home), "SLOTS_CONFIG": str(self.config),
                     "PYTHONPATH": str(SRC)}
         for k in ("SLOTS_LANE", "SLOTS_SESSION", "SLOTS_DEVICE"):
@@ -59,7 +60,8 @@ class World(unittest.TestCase):
             try:
                 os.killpg(p.pid, signal.SIGKILL)
             except (ProcessLookupError, PermissionError):
-                pass
+                if p.poll() is None:
+                    p.kill()   # not a group leader (started without start_new_session)
             p.wait()
             for f in (p.stdout, p.stderr):
                 if f:

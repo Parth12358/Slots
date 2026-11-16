@@ -13,6 +13,9 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
+# What the compatibility shims (agent-slot.sh, slot.sh, lib-slot.sh) map onto.
+COMPAT_DEFAULTS = {"agent_pool": "agent", "test_pool": "test", "e2e_lock": "e2e",
+                   "employee_family": "next-employee", "undeclared_locks": False}
 USER_CONFIG = Path("~/.config/slots/config.toml").expanduser()
 PROJECT_NAME = ".slots.toml"
 
@@ -60,6 +63,7 @@ class Config:
     resources: dict[str, Resource] = field(default_factory=dict)
     families: dict[str, Family] = field(default_factory=dict)
     device: str | None = None
+    compat: dict = field(default_factory=dict)
     raw: dict = field(default_factory=dict)
 
     def resolve(self, spec: str) -> Resource:
@@ -74,6 +78,8 @@ class Config:
         for fam in self.families.values():
             if fam.matches(spec):
                 return Resource(spec, "lock", family=fam.name)
+        if self.compat.get("undeclared_locks") and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", spec):
+            return Resource(spec, "lock", family="(undeclared)")
         known = sorted(self.resources) + [f"{f}:<key>" for f in sorted(self.families)]
         raise ConfigError(f"unknown resource {spec!r} (known: {', '.join(known) or 'none'})")
 
@@ -198,6 +204,12 @@ def from_dict(raw: dict, path: Path | None = None) -> Config:
         if "{key}" not in template:
             raise ConfigError(f"family.{name}.name must contain {{key}}")
         cfg.families[name] = Family(name, template, key, tuple(spec.get("normalize", ("trim", "lower"))))
+
+    compat = merged.get("compat", {})
+    cfg.compat = {**COMPAT_DEFAULTS, **compat}
+    for key in ("agent_pool", "test_pool", "e2e_lock"):
+        if compat.get(key) and compat[key] not in cfg.resources:
+            raise ConfigError(f"compat.{key} = {compat[key]!r} is not a declared pool or lock")
 
     if merged.get("cluster", {}).get("enabled"):
         raise ConfigError("cluster mode is not built yet (set cluster.enabled = false)")

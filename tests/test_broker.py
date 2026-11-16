@@ -87,15 +87,17 @@ class BrokerTest(unittest.TestCase):
         b, _, _ = mk()
         b.request(["agent"], lane("1", session="s1"), conn="c", idempotent=True)
         b.detach(b.leases[0].token, "manual")
-        with self.assertRaisesRegex(Refused, "held by 1"):
-            b.release(["agent"], lane("2"))
+        self.assertEqual(b.release(["agent"], lane("2"))[0], [], "lane 2 holds no agent slot: nothing to do")
         with self.assertRaises(Refused):
             b.release(["agent"], lane("1", session="other-session"))
-        with self.assertRaises(Refused):
-            b.release(["agent"], Owner())
         released, _ = b.release(["agent"], lane("1", session="s1"))
         self.assertEqual(len(released), 1)
         self.assertEqual(b.release(["agent"], lane("1"))[0], [], "nothing held: a no-op, not a refusal")
+        b.request(["agent"], lane("3"), conn="c3")
+        self.assertEqual(b.release(["agent"], lane("1"))[0], [], "another lane's pool unit isn't a refusal")
+        b.request(["e2e"], lane("3"), conn="c3")
+        with self.assertRaisesRegex(Refused, "held by 3"):
+            b.release(["e2e"], lane("1"))
 
     def test_admin_release(self):
         b, _, _ = mk()
